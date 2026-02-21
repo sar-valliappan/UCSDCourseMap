@@ -2,7 +2,30 @@ import sys
 import re
 import json
 import requests
+
 from bs4 import BeautifulSoup
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+import time
+def create_session():
+    session = requests.Session()
+
+    retries = Retry(
+        total=5,
+        backoff_factor=0.5,
+        status_forcelist=[429, 500, 502, 503, 504],
+    )
+
+    adapter = HTTPAdapter(max_retries=retries)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+
+    return session
+
+
+session = create_session()
 
 def get_course_ids(catalog_url):
     """Scrape all course IDs from a catalog page e.g. catalog.ucsd.edu/courses/CSE.html"""
@@ -14,7 +37,16 @@ def get_course_ids(catalog_url):
     for tag in soup.find_all(["p", "dt"]):
         match = re.match(r"^([A-Z]+)\s+(\w+)\.", tag.get_text(" ", strip=True))
         if match:
-            courses.append((match.group(1), match.group(2)))
+            subject, number = match.group(1), match.group(2)
+            num_match = re.match(r"(\d+)", number)
+            if not num_match:
+                continue
+            
+            numeric_value = int(num_match.group(1))
+            if numeric_value >= 200:
+                break
+            
+            courses.append((subject, number))
     return courses
 
 
@@ -62,15 +94,16 @@ def get_prereqs(subject, number, term="WI26"):
 
 
 if __name__ == "__main__":
+    start = time.time()
     if len(sys.argv) < 3:
         print("Usage:")
-        print("  Full catalog:   python scraper.py <CODE> [term] [out.json]")
+        print("  Full catalog:   python scraper.py <CODE> [term]")
         sys.exit(1)
 
     code = sys.argv[1]
     url = f"https://catalog.ucsd.edu/courses/{code.upper()}.html"
     term = sys.argv[2] if len(sys.argv) > 2 else "WI26"
-    out = sys.argv[3] if len(sys.argv) > 3 else "courses.json"
+    out = f"data/{code}.json"
 
     course_ids = get_course_ids(url)
     print(f"Found {len(course_ids)} courses")
@@ -89,3 +122,4 @@ if __name__ == "__main__":
     with open(out, "w") as f:
         json.dump(results, f, indent=2)
     print(f"Saved to {out}")
+    print(f"Total time: {time.time() - start:.2f} seconds")
