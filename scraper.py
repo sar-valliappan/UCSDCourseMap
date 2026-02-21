@@ -64,35 +64,28 @@ def get_prereqs(subject, number, term="WI26"):
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("Usage:")
-        print("  Single course:  python scraper.py CSE 100 [term]")
-        print("  Full catalog:   python scraper.py --catalog <url> [term] [out.json]")
+        print("  Full catalog:   python scraper.py <CODE> [term] [out.json]")
         sys.exit(1)
 
-    if sys.argv[1] == "--catalog":
-        url = sys.argv[2]
-        term = sys.argv[3] if len(sys.argv) > 3 else "WI26"
-        out = sys.argv[4] if len(sys.argv) > 4 else "courses.json"
+    code = sys.argv[1]
+    url = f"https://catalog.ucsd.edu/courses/{code.upper()}.html"
+    term = sys.argv[2] if len(sys.argv) > 2 else "WI26"
+    out = sys.argv[3] if len(sys.argv) > 3 else "courses.json"
 
-        course_ids = get_course_ids(url)
-        print(f"Found {len(course_ids)} courses")
+    course_ids = get_course_ids(url)
+    print(f"Found {len(course_ids)} courses")
 
-        results = []
-        for i, (subject, number) in enumerate(course_ids):
-            print(f"[{i+1}/{len(course_ids)}] {subject}{number}", end=" ", flush=True)
-            try:
-                result = get_prereqs(subject, number, term)
-                print(f"({len(result['prereqs'])} groups)")
-            except Exception as e:
-                print(f"(error: {e})")
-                result = {"course_id": f"{subject}{number}", "term": term, "prereqs": []}
-            results.append(result)
+    results = []
+    for i, (subject, number) in enumerate(course_ids):
+        print(f"[{i+1}/{len(course_ids)}] {subject}{number}", end=" ", flush=True)
+        try:
+            result = get_prereqs(subject, number, term)
+            print(f"({len(result['prereqs'])} groups)")
+        except Exception as e:
+            print(f"(error: {e})")
+            result = {"course_id": f"{subject}{number}", "term": term, "prereqs": []}
+        results.append(result)
 
-        with open(out, "w") as f:
-            json.dump(results, f, indent=2)
-        print(f"Saved to {out}")
-
-    else:
-        subject, number = sys.argv[1].upper(), sys.argv[2]
-        term = sys.argv[3] if len(sys.argv) > 3 else "WI26"
-        result = get_prereqs(subject, number, term)
-        print(json.dumps(result, indent=2))
+    with open(out, "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"Saved to {out}")
