@@ -1,35 +1,51 @@
 import sys
 import re
 import json
+import time
 import requests
 
 from bs4 import BeautifulSoup
-import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-import time
+CATALOG_BASE = "https://catalog.ucsd.edu"
+
+
 def create_session():
     session = requests.Session()
-
     retries = Retry(
         total=5,
         backoff_factor=0.5,
         status_forcelist=[429, 500, 502, 503, 504],
     )
-
     adapter = HTTPAdapter(max_retries=retries)
     session.mount("https://", adapter)
     session.mount("http://", adapter)
-
     return session
 
 
 session = create_session()
 
+def get_department_urls():
+    """Scrape all department course page URLs from the catalog index."""
+    resp = session.get(f"{CATALOG_BASE}/front/courses.html", timeout=15)
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    urls = {}
+    for a in soup.find_all("a", href=True):
+        if "/courses/" in a["href"] and a.get_text(strip=True).lower() == "courses":
+            full_url = CATALOG_BASE + "/" + a["href"].lstrip("./")
+            dept = re.search(r"/courses/(\w+)\.html", full_url)
+            if dept:
+                urls[dept.group(1)] = full_url
+
+    return urls  # {"CSE": "https://...", "MATH": "https://...", ...}
+
+
 def get_course_ids(catalog_url):
     """Scrape all course IDs from a catalog page e.g. catalog.ucsd.edu/courses/CSE.html"""
-    resp = requests.get(catalog_url, timeout=15)
+    resp = session.get(catalog_url, timeout=15)
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
 
@@ -41,18 +57,15 @@ def get_course_ids(catalog_url):
             num_match = re.match(r"(\d+)", number)
             if not num_match:
                 continue
-            
-            numeric_value = int(num_match.group(1))
-            if numeric_value >= 200:
+            if int(num_match.group(1)) >= 200:
                 break
-            
             courses.append((subject, number))
     return courses
 
 
 def get_prereqs(subject, number, term="WI26"):
     course_id = f"{subject}{number}"
-    resp = requests.get(
+    resp = session.get(
         "https://act.ucsd.edu/scheduleOfClasses/scheduleOfClassesPreReq.htm",
         params={"termCode": term, "courseId": course_id},
         timeout=15,
@@ -93,21 +106,25 @@ def get_prereqs(subject, number, term="WI26"):
     return {"course_id": course_id, "term": term, "prereqs": groups}
 
 
-if __name__ == "__main__":
-    start = time.time()
-    if len(sys.argv) < 3:
-        print("Usage:")
-        print("  Full catalog:   python scraper.py <CODE> [term]")
-        sys.exit(1)
-
-    code = sys.argv[1]
-    url = f"https://catalog.ucsd.edu/courses/{code.upper()}.html"
-    term = sys.argv[2] if len(sys.argv) > 2 else "WI26"
-    out = f"data/{code}.json"
-
+def scrape_dept(code, term, out):
+    url = f"{CATALOG_BASE}/courses/{code.upper()}.html"
     course_ids = get_course_ids(url)
     print(f"Found {len(course_ids)} courses")
+    return scrape_courses(course_ids, term, out)
 
+
+def scrape_all(term):
+    print("Fetching department list...")
+    dept_urls = get_department_urls()
+    print(f"Found {len(dept_urls)} departments\n")
+
+    for dept in sorted(dept_urls.keys()):
+        print(f"--- {dept}")
+        scrape_dept(dept, term, f"data/{dept}.json")
+        print()
+
+
+def scrape_courses(course_ids, term, out):
     results = []
     for i, (subject, number) in enumerate(course_ids):
         print(f"[{i+1}/{len(course_ids)}] {subject}{number}", end=" ", flush=True)
@@ -122,4 +139,24 @@ if __name__ == "__main__":
     with open(out, "w") as f:
         json.dump(results, f, indent=2)
     print(f"Saved to {out}")
+    return results
+
+
+if __name__ == "__main__":
+    start = time.time()
+
+    if len(sys.argv) < 2:
+        print("Usage:")
+        print("  One dept:   python scraper.py <CODE> [term]        e.g. python scraper.py CSE WI26")
+        print("  All depts:  python scraper.py --all [term]         e.g. python scraper.py --all WI26")
+        sys.exit(1)
+
+    if sys.argv[1] == "--all":
+        term = sys.argv[2] if len(sys.argv) > 2 else "WI26"
+        scrape_all(term)
+    else:
+        code = sys.argv[1]
+        term = sys.argv[2] if len(sys.argv) > 2 else "WI26"
+        scrape_dept(code, term, f"data/{code}.json")
+
     print(f"Total time: {time.time() - start:.2f} seconds")
