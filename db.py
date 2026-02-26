@@ -14,14 +14,16 @@ def init_db():
             subject TEXT NOT NULL,
             number TEXT NOT NULL
         );
-            
+        ''')
+    c.execute('''   
         CREATE TABLE IF NOT EXISTS prereq_groups (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 course_id   TEXT NOT NULL REFERENCES courses(course_id),
                 sequence    INTEGER NOT NULL,
                 term        TEXT NOT NULL
         );
-
+    ''')
+    c.execute('''
         CREATE TABLE IF NOT EXISTS prereq_options (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             group_id    INTEGER NOT NULL REFERENCES prereq_groups(id),
@@ -63,3 +65,50 @@ def insert_prereqs(course_id, term, prereqs):
                 "INSERT INTO prereq_options (group_id, course_id) VALUES (?, ?)",
                 (group_id, option["course_id"]),
             )
+
+    conn.commit()
+    conn.close()
+
+def load_json_file(path):
+    """Load a single data/*.json file into the database."""
+    with open(path) as f:
+        courses = json.load(f)
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    for course in courses:
+        course_id = course["course_id"]
+        subject = "".join(c for c in course_id if c.isalpha())
+        number = course_id[len(subject):]
+        term = course.get("term", "unknown")
+
+        insert_course(course_id, subject, number)
+        insert_prereqs(course_id, term, course.get("prereqs", []))
+    
+    conn.commit()
+    conn.close()
+
+def load_all(data_dir="data"):
+    """Load all JSON files from the data directory into the database."""
+    init_db()
+    files = [f for f in os.listdir(data_dir) if f.endswith(".json")]
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    for i, fname in enumerate(sorted(files)):
+        path = os.path.join(data_dir, fname)
+        print(f"[{i+1}/{len(files)}] {fname}", flush=True)
+        load_json_file(path)
+
+    n_courses = c.execute("SELECT COUNT(*) FROM courses").fetchone()[0]
+    n_groups  = c.execute("SELECT COUNT(*) FROM prereq_groups").fetchone()[0]
+    n_options = c.execute("SELECT COUNT(*) FROM prereq_options").fetchone()[0]
+
+    print(f"\nDone. {n_courses} courses, {n_groups} prereq groups, {n_options} options → {DB_PATH}")
+
+    conn.close()
+
+if __name__ == "__main__":
+    load_all()
