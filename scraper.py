@@ -2,6 +2,7 @@ import sys
 import re
 import json
 import time
+import os
 import requests
 
 from bs4 import BeautifulSoup
@@ -106,11 +107,21 @@ def get_prereqs(subject, number, term="WI26"):
     return {"course_id": course_id, "term": term, "prereqs": groups}
 
 
-def scrape_dept(code, term, out):
+def scrape_dept(code, term):
     url = f"{CATALOG_BASE}/courses/{code.upper()}.html"
     course_ids = get_course_ids(url)
     print(f"Found {len(course_ids)} courses")
-    return scrape_courses(course_ids, term, out)
+
+    if not course_ids:
+        print("No courses found, skipping.")
+        return
+
+    by_prefix = {}
+    for subject, number in course_ids:
+        by_prefix.setdefault(subject, []).append((subject, number))
+
+    for prefix, courses in by_prefix.items():
+        scrape_courses(courses, term, f"data/{prefix}.json")
 
 
 def scrape_all(term):
@@ -120,7 +131,7 @@ def scrape_all(term):
 
     for dept in sorted(dept_urls.keys()):
         print(f"--- {dept}")
-        scrape_dept(dept, term, f"data/{dept}.json")
+        scrape_dept(dept, term)
         print()
 
 
@@ -151,12 +162,14 @@ if __name__ == "__main__":
         print("  All depts:  python scraper.py --all [term]         e.g. python scraper.py --all WI26")
         sys.exit(1)
 
+    os.makedirs("data", exist_ok=True)
+
     if sys.argv[1] == "--all":
         term = sys.argv[2] if len(sys.argv) > 2 else "WI26"
         scrape_all(term)
     else:
         code = sys.argv[1]
         term = sys.argv[2] if len(sys.argv) > 2 else "WI26"
-        scrape_dept(code, term, f"data/{code}.json")
+        scrape_dept(code, term)
 
     print(f"Total time: {time.time() - start:.2f} seconds")
