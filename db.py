@@ -110,5 +110,39 @@ def load_all(data_dir="data"):
 
     conn.close()
 
+def get_prereqs(course_id):
+    """
+    Fetch structured prereqs for a course from the DB.
+    Merges across all terms — if a course appears in multiple terms,
+    the most recent term's prereqs take precedence (last write wins).
+    Returns list of groups: [{"sequence": 1, "options": ["CSE21", "MATH154"]}, ...]
+    """
+
+    conn = sqlite3.connect(DB_PATH)
+
+    groups = conn.execute(
+        "SELECT id, sequence FROM prereq_groups WHERE course_id = ? ORDER BY term DESC, sequence",
+        (course_id,),
+    ).fetchall()
+
+    result = []
+    seen_seq = set()
+    for group in groups:
+        if group["sequence"] in seen_seq:
+            continue
+        seen_seq.add(group["sequence"])
+
+        options = conn.execute(
+            "SELECT course_id FROM prereq_options WHERE group_id = ?",
+            (group["id"],),
+        ).fetchall()
+
+        result.append({
+            "sequence": group["sequence"],
+            "options": [r["course_id"] for r in options],
+        })
+
+    return sorted(result, key=lambda g: g["sequence"])
+
 if __name__ == "__main__":
     load_all()
