@@ -4,78 +4,81 @@ import os
 
 DB_PATH = "prereqs.db"
 
-def init_db():
-    """Initialize the SQLite database and create the courses table."""
+
+def get_conn():
     conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS courses (
-            course_id TEXT PRIMARY KEY,
-            subject TEXT NOT NULL,
-            number TEXT NOT NULL
-        );
-        ''')
-    c.execute('''   
-        CREATE TABLE IF NOT EXISTS prereq_groups (
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.commit()
+    return conn
+
+
+def init_db():
+    """Create tables if they don't exist."""
+    with get_conn() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS courses (
+                course_id   TEXT PRIMARY KEY,
+                subject     TEXT NOT NULL,
+                number      TEXT NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS prereq_groups (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 course_id   TEXT NOT NULL REFERENCES courses(course_id),
                 sequence    INTEGER NOT NULL,
                 term        TEXT NOT NULL
-        );
-    ''')
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS prereq_options (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            group_id    INTEGER NOT NULL REFERENCES prereq_groups(id),
-            course_id   TEXT NOT NULL
-        );
-    ''')
-    conn.commit()
-    conn.close()
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS prereq_options (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_id    INTEGER NOT NULL REFERENCES prereq_groups(id),
+                course_id   TEXT NOT NULL
+            )
+        """)
 
-def insert_course(course_id, subject, number):
-    """Insert a course into the database."""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('INSERT OR IGNORE INTO courses (course_id, subject, number) VALUES (?, ?, ?)', (course_id, subject, number))
-    conn.commit()
-    conn.close()
 
-def insert_prereqs(course_id, term, prereqs):
-    """Insert prerequisite groups and options for a course."""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute(
+def insert_course(conn, course_id, subject, number):
+    conn.execute(
+        "INSERT OR IGNORE INTO courses (course_id, subject, number) VALUES (?, ?, ?)",
+        (course_id, subject, number),
+    )
+
+
+def insert_prereqs(conn, course_id, term, prereqs):
+    """
+    Insert prereq groups and options for a course+term.
+    Replaces existing data for that course+term to support multi-term merging.
+    """
+    conn.execute(
         "DELETE FROM prereq_options WHERE group_id IN "
         "(SELECT id FROM prereq_groups WHERE course_id = ? AND term = ?)",
         (course_id, term),
     )
-    c.execute(
+    conn.execute(
         "DELETE FROM prereq_groups WHERE course_id = ? AND term = ?",
         (course_id, term),
     )
+
     for group in prereqs:
-        c.execute(
+        cursor = conn.execute(
             "INSERT INTO prereq_groups (course_id, sequence, term) VALUES (?, ?, ?)",
             (course_id, group["sequence"], term),
         )
-        group_id = c.lastrowid
-        for option in group["options"]:
-            c.execute(
+        group_id = cursor.lastrowid
+        for opt in group["options"]:
+            conn.execute(
                 "INSERT INTO prereq_options (group_id, course_id) VALUES (?, ?)",
-                (group_id, option["course_id"]),
+                (group_id, opt["course_id"]),
             )
 
-    conn.commit()
-    conn.close()
 
-def load_json_file(path):
+def load_json_file(conn, path):
     """Load a single data/*.json file into the database."""
     with open(path) as f:
         courses = json.load(f)
-
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
 
     for course in courses:
         course_id = course["course_id"]
@@ -83,32 +86,28 @@ def load_json_file(path):
         number = course_id[len(subject):]
         term = course.get("term", "unknown")
 
-        insert_course(course_id, subject, number)
-        insert_prereqs(course_id, term, course.get("prereqs", []))
-    
-    conn.commit()
-    conn.close()
+        insert_course(conn, course_id, subject, number)
+        insert_prereqs(conn, course_id, term, course.get("prereqs", []))
+
 
 def load_all(data_dir="data"):
     """Load all JSON files from the data directory into the database."""
     init_db()
     files = [f for f in os.listdir(data_dir) if f.endswith(".json")]
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
+    with get_conn() as conn:
+        for i, fname in enumerate(sorted(files)):
+            path = os.path.join(data_dir, fname)
+            print(f"[{i+1}/{len(files)}] {fname}", flush=True)
+            load_json_file(conn, path)
 
-    for i, fname in enumerate(sorted(files)):
-        path = os.path.join(data_dir, fname)
-        print(f"[{i+1}/{len(files)}] {fname}", flush=True)
-        load_json_file(path)
-
-    n_courses = c.execute("SELECT COUNT(*) FROM courses").fetchone()[0]
-    n_groups  = c.execute("SELECT COUNT(*) FROM prereq_groups").fetchone()[0]
-    n_options = c.execute("SELECT COUNT(*) FROM prereq_options").fetchone()[0]
+    with get_conn() as conn:
+        n_courses = conn.execute("SELECT COUNT(*) FROM courses").fetchone()[0]
+        n_groups  = conn.execute("SELECT COUNT(*) FROM prereq_groups").fetchone()[0]
+        n_options = conn.execute("SELECT COUNT(*) FROM prereq_options").fetchone()[0]
 
     print(f"\nDone. {n_courses} courses, {n_groups} prereq groups, {n_options} options → {DB_PATH}")
 
-    conn.close()
 
 def get_prereqs(course_id):
     """
@@ -117,9 +116,7 @@ def get_prereqs(course_id):
     the most recent term's prereqs take precedence (last write wins).
     Returns list of groups: [{"sequence": 1, "options": ["CSE21", "MATH154"]}, ...]
     """
-
-    conn = sqlite3.connect(DB_PATH)
-
+    conn = get_conn()
     groups = conn.execute(
         "SELECT id, sequence FROM prereq_groups WHERE course_id = ? ORDER BY term DESC, sequence",
         (course_id,),
@@ -142,7 +139,10 @@ def get_prereqs(course_id):
             "options": [r["course_id"] for r in options],
         })
 
+    conn.close()
     return sorted(result, key=lambda g: g["sequence"])
+
 
 if __name__ == "__main__":
     load_all()
+    print(get_prereqs("CSE100"))
