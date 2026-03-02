@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Graph from './Graph'
-import { useLayout } from './useLayout'
+import { useLayout, useUnlocksLayout } from './useLayout'
 
 const inputStyle: React.CSSProperties = {
   background: '#0f1923',
@@ -26,10 +26,15 @@ const buttonStyle: React.CSSProperties = {
 }
 
 export default function App() {
-  const [draft, setDraft] = useState('CSE30')
-  const [courseId, setCourseId] = useState('CSE30')
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set(['CSE30']))
-  const { tree, loading, error } = useLayout(courseId)
+  const [draft, setDraft] = useState('CSE12')
+  const [courseId, setCourseId] = useState('CSE12')
+  const [mode, setMode] = useState<'prereqs' | 'unlocks'>('unlocks')
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set(['CSE12']))
+  const { tree, loading: prereqLoading, error: prereqError } = useLayout(courseId)
+  const { unlockData, loading: unlockLoading, error: unlockError, fetchUnlocks } = useUnlocksLayout(courseId)
+
+  const loading = mode === 'prereqs' ? prereqLoading : unlockLoading
+  const error = mode === 'prereqs' ? prereqError : unlockError
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -40,8 +45,19 @@ export default function App() {
     }
   }
 
+  function handleModeToggle() {
+    setMode(prev => {
+      setExpandedNodes(new Set([courseId]))
+      return prev === 'prereqs' ? 'unlocks' : 'prereqs'
+    })
+  }
+
   function handleNodeExpand(nodeId: string) {
     setExpandedNodes(prev => new Set([...prev, nodeId]))
+    if (mode === 'unlocks') {
+      const subCourseId = nodeId.split('::').pop()!
+      fetchUnlocks(subCourseId)
+    }
   }
 
   function handleNodeCollapse(nodeId: string) {
@@ -77,6 +93,17 @@ export default function App() {
           style={inputStyle}
         />
         <button type="submit" style={buttonStyle}>View</button>
+        <button
+          type="button"
+          onClick={handleModeToggle}
+          style={{
+            ...buttonStyle,
+            color: mode === 'unlocks' ? '#4ade80' : '#38bdf8',
+            borderColor: mode === 'unlocks' ? '#166534' : '#0369a1',
+          }}
+        >
+          {mode === 'prereqs' ? 'unlocks →' : '← prereqs'}
+        </button>
         {loading && (
           <span style={{ color: '#475569', fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>
             loading…
@@ -91,8 +118,8 @@ export default function App() {
 
       <Graph
         tree={tree}
-        unlocks={[]}
-        mode="prereqs"
+        unlockData={unlockData}
+        mode={mode}
         activeCourse={courseId}
         expandedNodes={expandedNodes}
         onNodeExpand={handleNodeExpand}

@@ -4,8 +4,8 @@ import type { Node } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import CourseNode from './Coursenode'
 import GateNode from './GateNode'
-import { buildLazyGraph, buildUnlocksGraph } from './useLayout'
-import type { PrereqTreeNode, NodeData } from './useLayout'
+import { buildLazyGraph, buildLazyUnlocksGraph } from './useLayout'
+import type { PrereqTreeNode, UnlockData, NodeData } from './useLayout'
 
 const nodeTypes = { courseNode: CourseNode, orNode: GateNode, andNode: GateNode }
 
@@ -19,7 +19,7 @@ function AutoFit({ nodes }: { nodes: Node[] }) {
 
 interface Props {
   tree: PrereqTreeNode | null
-  unlocks: string[]
+  unlockData: UnlockData
   mode: 'prereqs' | 'unlocks'
   activeCourse: string
   expandedNodes: Set<string>
@@ -27,12 +27,12 @@ interface Props {
   onNodeCollapse: (nodeId: string) => void
 }
 
-export default function Graph({ tree, unlocks, mode, activeCourse, expandedNodes, onNodeExpand, onNodeCollapse }: Props) {
+export default function Graph({ tree, unlockData, mode, activeCourse, expandedNodes, onNodeExpand, onNodeCollapse }: Props) {
   const { nodes, edges } = useMemo(() => {
     if (mode === 'prereqs' && tree) return buildLazyGraph(tree, expandedNodes)
-    if (mode === 'unlocks' && activeCourse) return buildUnlocksGraph(activeCourse, unlocks)
+    if (mode === 'unlocks') return buildLazyUnlocksGraph(activeCourse, unlockData, expandedNodes)
     return { nodes: [], edges: [] }
-  }, [tree, unlocks, mode, activeCourse, expandedNodes])
+  }, [tree, unlockData, mode, activeCourse, expandedNodes])
 
   return (
     <div style={{ width: '100vw', height: '100vh' }}>

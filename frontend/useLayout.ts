@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MarkerType } from '@xyflow/react'
 import type { Node, Edge } from '@xyflow/react'
 import dagre from '@dagrejs/dagre'
@@ -26,6 +26,10 @@ export interface PrereqTreeNode {
   }>
   note?: string
 }
+
+// unlockData maps courseId -> direct unlocks fetched from the API.
+// Absence from the map means "not yet fetched".
+export type UnlockData = Map<string, string[]>
 
 function nodeSize(type: string | undefined) {
   return type === 'orNode' || type === 'andNode'
@@ -182,33 +186,89 @@ export function buildLazyGraph(
   return { nodes: applyDagre(nodes, edges), edges }
 }
 
-export function buildUnlocksGraph(
-  activeCourse: string,
-  unlocks: string[],
-): { nodes: Node[]; edges: Edge[] } {
-  const nodeSet = new Map<string, Node>()
-  const edgeSet = new Map<string, Edge>()
+function collectLazyUnlocksGraph(
+  courseId: string,
+  unlockData: UnlockData,
+  nodes: Node[],
+  edges: Edge[],
+  rootPathId: string,
+  pathId: string,
+  expandedNodes: Set<string>,
+  visitedCourses: Set<string>,
+) {
+  const isCycle = visitedCourses.has(courseId)
+  const fetched = unlockData.has(courseId)
+  const directUnlocks = unlockData.get(courseId) ?? []
+  const isExpanded = expandedNodes.has(pathId)
+  const hasUnlocks = directUnlocks.length > 0
+  // Show + if not expanded and (not yet fetched, or has known unlocks)
+  const expandable = !isCycle && !isExpanded && (!fetched || hasUnlocks)
+  const collapsible = !isCycle && isExpanded && pathId !== rootPathId
 
-  nodeSet.set(activeCourse, {
-    id: activeCourse,
+  nodes.push({
+    id: pathId,
     type: 'courseNode',
     position: { x: 0, y: 0 },
-    data: { label: activeCourse, isRoot: true },
+    data: {
+      label: courseId,
+      isRoot: pathId === rootPathId,
+      isCycle,
+      expandable,
+      collapsible,
+    },
   })
 
-  for (const u of unlocks) {
-    nodeSet.set(u, {
-      id: u,
-      type: 'courseNode',
-      position: { x: 0, y: 0 },
-      data: { label: u },
-    })
-    edgeSet.set(`${activeCourse}->${u}`, makeEdge(activeCourse, u))
+  if (isCycle || !isExpanded || !fetched || !hasUnlocks) return
+
+  const nextVisited = new Set([...visitedCourses, courseId])
+  for (const childId of directUnlocks) {
+    const childPath = `${pathId}::${childId}`
+    edges.push(makeEdge(pathId, childPath))
+    collectLazyUnlocksGraph(childId, unlockData, nodes, edges, rootPathId, childPath, expandedNodes, nextVisited)
+  }
+}
+
+export function buildLazyUnlocksGraph(
+  rootId: string,
+  unlockData: UnlockData,
+  expandedNodes: Set<string>,
+): { nodes: Node[]; edges: Edge[] } {
+  const nodes: Node[] = []
+  const edges: Edge[] = []
+  collectLazyUnlocksGraph(rootId, unlockData, nodes, edges, rootId, rootId, expandedNodes, new Set())
+  return { nodes: applyDagre(nodes, edges), edges }
+}
+
+export function useUnlocksLayout(courseId: string) {
+  const [unlockData, setUnlockData] = useState<UnlockData>(new Map())
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setUnlockData(new Map())
+    setError(null)
+    setLoading(true)
+    fetch(`${API_BASE}/unlocks/${courseId}`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
+        return r.json() as Promise<{ course_id: string; unlocks: string[] }>
+      })
+      .then((data) => setUnlockData(new Map([[courseId, data.unlocks]])))
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [courseId])
+
+  function fetchUnlocks(subCourseId: string) {
+    if (unlockData.has(subCourseId)) return
+    fetch(`${API_BASE}/unlocks/${subCourseId}`)
+      .then((r) => r.json() as Promise<{ course_id: string; unlocks: string[] }>)
+      .then((data) =>
+        setUnlockData((prev) => new Map([...prev, [subCourseId, data.unlocks]])),
+      )
+      .catch(() => {/* swallow sub-fetch errors */})
   }
 
-  const rawNodes = [...nodeSet.values()]
-  const rawEdges = [...edgeSet.values()]
-  return { nodes: applyDagre(rawNodes, rawEdges), edges: rawEdges }
+  return { unlockData, loading, error, fetchUnlocks }
 }
 
 export function useLayout(courseId: string) {
