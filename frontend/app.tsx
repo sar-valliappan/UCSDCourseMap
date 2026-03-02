@@ -95,16 +95,53 @@ export default function App() {
           alignItems: 'center',
         }}
       >
-        <input
-          value={draft}
-          onChange={e => setDraft(e.target.value)}
-          placeholder="e.g. CSE100"
-          list="course-suggestions"
-          style={inputStyle}
-        />
-        <datalist id="course-suggestions">
-          {suggestions.map(s => <option key={s} value={s} />)}
-        </datalist>
+        <div style={{ position: 'relative' }}>
+          <input
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onBlur={() => setTimeout(() => setSuggestions([]), 150)}
+            placeholder="e.g. CSE100"
+            style={inputStyle}
+          />
+          {suggestions.length > 0 && (
+            <ul style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              margin: '4px 0 0',
+              padding: 0,
+              listStyle: 'none',
+              background: '#0f1923',
+              border: '1px solid #1e3a5f',
+              borderRadius: 6,
+              minWidth: '100%',
+              zIndex: 20,
+            }}>
+              {suggestions.map(s => (
+                <li
+                  key={s}
+                  onMouseDown={() => {
+                    setDraft(s)
+                    setSuggestions([])
+                    setCourseId(s)
+                    setExpandedNodes(new Set([s]))
+                  }}
+                  style={{
+                    padding: '6px 12px',
+                    fontFamily: "'IBM Plex Mono', monospace",
+                    fontSize: 12,
+                    color: '#94a3b8',
+                    cursor: 'pointer',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.color = '#e2e8f0')}
+                  onMouseLeave={e => (e.currentTarget.style.color = '#94a3b8')}
+                >
+                  {s}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         <button type="submit" style={buttonStyle}>View</button>
         <button
           type="button"
