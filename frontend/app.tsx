@@ -28,12 +28,20 @@ const buttonStyle: React.CSSProperties = {
 export default function App() {
   const [draft, setDraft] = useState('CSE30')
   const [courseId, setCourseId] = useState('CSE30')
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set(['CSE30']))
   const { tree, loading, error } = useLayout(courseId)
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const trimmed = draft.trim().toUpperCase()
-    if (trimmed) setCourseId(trimmed)
+    if (trimmed) {
+      setCourseId(trimmed)
+      setExpandedNodes(new Set([trimmed]))
+    }
+  }
+
+  function handleNodeExpand(nodeId: string) {
+    setExpandedNodes(prev => new Set([...prev, nodeId]))
   }
 
   return (
@@ -70,7 +78,14 @@ export default function App() {
         )}
       </form>
 
-      <Graph tree={tree} unlocks={[]} mode="prereqs" activeCourse={courseId} />
+      <Graph
+        tree={tree}
+        unlocks={[]}
+        mode="prereqs"
+        activeCourse={courseId}
+        expandedNodes={expandedNodes}
+        onNodeExpand={handleNodeExpand}
+      />
     </div>
   )
 }

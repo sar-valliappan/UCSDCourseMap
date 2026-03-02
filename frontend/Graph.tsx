@@ -4,8 +4,8 @@ import type { Node } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import CourseNode from './Coursenode'
 import GateNode from './GateNode'
-import { buildPrereqGraph, buildUnlocksGraph } from './useLayout'
-import type { PrereqTreeNode } from './useLayout'
+import { buildLazyGraph, buildUnlocksGraph } from './useLayout'
+import type { PrereqTreeNode, NodeData } from './useLayout'
 
 const nodeTypes = { courseNode: CourseNode, orNode: GateNode, andNode: GateNode }
 
@@ -22,14 +22,16 @@ interface Props {
   unlocks: string[]
   mode: 'prereqs' | 'unlocks'
   activeCourse: string
+  expandedNodes: Set<string>
+  onNodeExpand: (nodeId: string) => void
 }
 
-export default function Graph({ tree, unlocks, mode, activeCourse }: Props) {
+export default function Graph({ tree, unlocks, mode, activeCourse, expandedNodes, onNodeExpand }: Props) {
   const { nodes, edges } = useMemo(() => {
-    if (mode === 'prereqs' && tree) return buildPrereqGraph(tree)
+    if (mode === 'prereqs' && tree) return buildLazyGraph(tree, expandedNodes)
     if (mode === 'unlocks' && activeCourse) return buildUnlocksGraph(activeCourse, unlocks)
     return { nodes: [], edges: [] }
-  }, [tree, unlocks, mode, activeCourse])
+  }, [tree, unlocks, mode, activeCourse, expandedNodes])
 
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
@@ -40,6 +42,11 @@ export default function Graph({ tree, unlocks, mode, activeCourse }: Props) {
       minZoom={0.2}
       proOptions={{ hideAttribution: true }}
       style={{ background: '#060d18' }}
+      onNodeClick={(_, node) => {
+        if (node.type === 'courseNode' && (node.data as NodeData).expandable) {
+          onNodeExpand(node.id)
+        }
+      }}
     >
       <AutoFit nodes={nodes} />
       <Background
@@ -48,8 +55,8 @@ export default function Graph({ tree, unlocks, mode, activeCourse }: Props) {
         size={1}
         color="#1e3a5f"
       />
-      <Controls 
-        showInteractive={false} 
+      <Controls
+        showInteractive={false}
         style={{
           background: '#0f1923',
           border: '1px solid #1e3a5f',

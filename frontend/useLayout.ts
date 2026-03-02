@@ -13,6 +13,7 @@ export interface NodeData {
   label: string
   isRoot?: boolean
   isCycle?: boolean
+  expandable?: boolean
   [key: string]: unknown
 }
 
@@ -114,6 +115,68 @@ export function buildPrereqGraph(tree: PrereqTreeNode): { nodes: Node[]; edges: 
   const nodes: Node[] = []
   const edges: Edge[] = []
   collectGraph(tree, nodes, edges, tree.course_id, tree.course_id)
+  return { nodes: applyDagre(nodes, edges), edges }
+}
+
+function collectLazyGraph(
+  tree: PrereqTreeNode,
+  nodes: Node[],
+  edges: Edge[],
+  rootId: string,
+  pathId: string,
+  expandedNodes: Set<string>,
+) {
+  const isExpanded = expandedNodes.has(pathId)
+  const hasPrereqs = tree.prereqs.length > 0 && tree.note !== 'cycle'
+
+  nodes.push({
+    id: pathId,
+    type: 'courseNode',
+    position: { x: 0, y: 0 },
+    data: {
+      label: tree.course_id,
+      isRoot: pathId === rootId,
+      isCycle: tree.note === 'cycle',
+      expandable: hasPrereqs && !isExpanded,
+    },
+  })
+
+  if (!isExpanded || !hasPrereqs) return
+
+  const groups = tree.prereqs
+  let connectTo = pathId
+  if (groups.length > 1) {
+    const andId = `${pathId}::and`
+    nodes.push({ id: andId, type: 'andNode', position: { x: 0, y: 0 }, data: { label: 'AND' } })
+    edges.push(makeEdge(andId, pathId))
+    connectTo = andId
+  }
+
+  for (const { sequence, options } of groups) {
+    if (options.length === 1) {
+      const childPath = `${pathId}::${options[0].course_id}`
+      edges.push(makeEdge(childPath, connectTo))
+      collectLazyGraph(options[0], nodes, edges, rootId, childPath, expandedNodes)
+    } else {
+      const orId = `${pathId}::or${sequence}`
+      nodes.push({ id: orId, type: 'orNode', position: { x: 0, y: 0 }, data: { label: 'OR' } })
+      edges.push(makeEdge(orId, connectTo))
+      for (const option of options) {
+        const childPath = `${pathId}::or${sequence}::${option.course_id}`
+        edges.push(makeEdge(childPath, orId))
+        collectLazyGraph(option, nodes, edges, rootId, childPath, expandedNodes)
+      }
+    }
+  }
+}
+
+export function buildLazyGraph(
+  tree: PrereqTreeNode,
+  expandedNodes: Set<string>,
+): { nodes: Node[]; edges: Edge[] } {
+  const nodes: Node[] = []
+  const edges: Edge[] = []
+  collectLazyGraph(tree, nodes, edges, tree.course_id, tree.course_id, expandedNodes)
   return { nodes: applyDagre(nodes, edges), edges }
 }
 

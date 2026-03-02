@@ -17,12 +17,14 @@ function CourseNode({ data }: NodeProps) {
           ? '1.5px solid #22d3ee'
           : d.isCycle
           ? '1px solid #6366f1'
+          : d.expandable
+          ? '1px solid #334f6e'
           : '1px solid #1e3a5f',
         borderRadius: 6,
         padding: '8px 14px',
         minWidth: 120,
         textAlign: 'center',
-        cursor: 'default',
+        cursor: d.expandable ? 'pointer' : 'default',
         boxShadow: d.isRoot ? '0 0 12px rgba(34,211,238,0.2)' : 'none',
       }}
     >
@@ -38,6 +40,7 @@ function CourseNode({ data }: NodeProps) {
       >
         {d.label}
         {d.isCycle && <span style={{ color: '#6366f1', marginLeft: 4 }}>↺</span>}
+        {d.expandable && <span style={{ color: '#38bdf8', marginLeft: 4, fontSize: 10 }}>+</span>}
       </span>
       <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
     </div>
