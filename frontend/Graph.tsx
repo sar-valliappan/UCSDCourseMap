@@ -24,9 +24,10 @@ interface Props {
   activeCourse: string
   expandedNodes: Set<string>
   onNodeExpand: (nodeId: string) => void
+  onNodeCollapse: (nodeId: string) => void
 }
 
-export default function Graph({ tree, unlocks, mode, activeCourse, expandedNodes, onNodeExpand }: Props) {
+export default function Graph({ tree, unlocks, mode, activeCourse, expandedNodes, onNodeExpand, onNodeCollapse }: Props) {
   const { nodes, edges } = useMemo(() => {
     if (mode === 'prereqs' && tree) return buildLazyGraph(tree, expandedNodes)
     if (mode === 'unlocks' && activeCourse) return buildUnlocksGraph(activeCourse, unlocks)
@@ -43,9 +44,10 @@ export default function Graph({ tree, unlocks, mode, activeCourse, expandedNodes
       proOptions={{ hideAttribution: true }}
       style={{ background: '#060d18' }}
       onNodeClick={(_, node) => {
-        if (node.type === 'courseNode' && (node.data as NodeData).expandable) {
-          onNodeExpand(node.id)
-        }
+        if (node.type !== 'courseNode') return
+        const d = node.data as NodeData
+        if (d.expandable) onNodeExpand(node.id)
+        else if (d.collapsible) onNodeCollapse(node.id)
       }}
     >
       <AutoFit nodes={nodes} />

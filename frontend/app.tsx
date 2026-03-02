@@ -44,6 +44,17 @@ export default function App() {
     setExpandedNodes(prev => new Set([...prev, nodeId]))
   }
 
+  function handleNodeCollapse(nodeId: string) {
+    setExpandedNodes(prev => {
+      const next = new Set(prev)
+      next.delete(nodeId)
+      for (const id of next) {
+        if (id.startsWith(nodeId + '::')) next.delete(id)
+      }
+      return next
+    })
+  }
+
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
       <form
@@ -85,6 +96,7 @@ export default function App() {
         activeCourse={courseId}
         expandedNodes={expandedNodes}
         onNodeExpand={handleNodeExpand}
+        onNodeCollapse={handleNodeCollapse}
       />
     </div>
   )

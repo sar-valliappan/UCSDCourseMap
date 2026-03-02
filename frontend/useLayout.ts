@@ -14,6 +14,7 @@ export interface NodeData {
   isRoot?: boolean
   isCycle?: boolean
   expandable?: boolean
+  collapsible?: boolean
   [key: string]: unknown
 }
 
@@ -138,6 +139,7 @@ function collectLazyGraph(
       isRoot: pathId === rootId,
       isCycle: tree.note === 'cycle',
       expandable: hasPrereqs && !isExpanded,
+      collapsible: hasPrereqs && isExpanded && pathId !== rootId,
     },
   })
 

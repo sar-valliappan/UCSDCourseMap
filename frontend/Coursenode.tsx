@@ -24,7 +24,7 @@ function CourseNode({ data }: NodeProps) {
         padding: '8px 14px',
         minWidth: 120,
         textAlign: 'center',
-        cursor: d.expandable ? 'pointer' : 'default',
+        cursor: d.expandable || d.collapsible ? 'pointer' : 'default',
         boxShadow: d.isRoot ? '0 0 12px rgba(34,211,238,0.2)' : 'none',
       }}
     >
@@ -41,6 +41,7 @@ function CourseNode({ data }: NodeProps) {
         {d.label}
         {d.isCycle && <span style={{ color: '#6366f1', marginLeft: 4 }}>↺</span>}
         {d.expandable && <span style={{ color: '#38bdf8', marginLeft: 4, fontSize: 10 }}>+</span>}
+        {d.collapsible && <span style={{ color: '#475569', marginLeft: 4, fontSize: 10 }}>−</span>}
       </span>
       <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
     </div>
