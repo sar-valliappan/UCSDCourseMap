@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Graph from './Graph'
 import { useLayout, useUnlocksLayout } from './useLayout'
 
@@ -27,11 +27,20 @@ const buttonStyle: React.CSSProperties = {
 
 export default function App() {
   const [draft, setDraft] = useState('CSE12')
+  const [suggestions, setSuggestions] = useState<string[]>([])
   const [courseId, setCourseId] = useState('CSE12')
   const [mode, setMode] = useState<'prereqs' | 'unlocks'>('unlocks')
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set(['CSE12']))
   const { tree, loading: prereqLoading, error: prereqError } = useLayout(courseId)
   const { unlockData, loading: unlockLoading, error: unlockError, fetchUnlocks } = useUnlocksLayout(courseId)
+
+  useEffect(() => {
+    if (!draft) { setSuggestions([]); return }
+    fetch(`http://localhost:8000/search?q=${encodeURIComponent(draft)}`)
+      .then(r => r.json())
+      .then(setSuggestions)
+      .catch(() => setSuggestions([]))
+  }, [draft])
 
   const loading = mode === 'prereqs' ? prereqLoading : unlockLoading
   const error = mode === 'prereqs' ? prereqError : unlockError
@@ -90,8 +99,12 @@ export default function App() {
           value={draft}
           onChange={e => setDraft(e.target.value)}
           placeholder="e.g. CSE100"
+          list="course-suggestions"
           style={inputStyle}
         />
+        <datalist id="course-suggestions">
+          {suggestions.map(s => <option key={s} value={s} />)}
+        </datalist>
         <button type="submit" style={buttonStyle}>View</button>
         <button
           type="button"

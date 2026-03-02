@@ -142,6 +142,16 @@ def get_prereqs(course_id):
     conn.close()
     return sorted(result, key=lambda g: g["sequence"])
 
+def search_courses(q: str, limit: int = 12) -> list[str]:
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT course_id FROM courses WHERE course_id LIKE ? ORDER BY course_id LIMIT ?",
+        (q.upper() + "%", limit),
+    ).fetchall()
+    conn.close()
+    return [r["course_id"] for r in rows]
+
+
 def get_unlocks(course_id):
     """
     Reverse lookup — returns all courses that list course_id as a prereq option.

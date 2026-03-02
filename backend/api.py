@@ -32,6 +32,13 @@ def tree(course_id: str):
     print_tree(tree)
     return tree
 
+@app.get("/search")
+def search(q: str = ""):
+    if len(q) < 1:
+        return []
+    return db.search_courses(q)
+
+
 @app.get("/unlocks/{course_id}")
 def unlocks(course_id: str):
     """Courses that this course unlocks (reverse prereq lookup)."""
