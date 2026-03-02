@@ -1,9 +1,10 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import db
-from prereq_tree import build_tree
+from prereqs import build_tree, load_all_courses, print_tree
 
 app = FastAPI()
+courses = load_all_courses()
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,8 +28,9 @@ def prereqs(course_id: str):
 def tree(course_id: str):
     """Full recursive prereq tree for a course."""
     course_id = course_id.upper()
-    return build_tree(course_id)
-
+    tree = build_tree(course_id, courses)
+    print_tree(tree)
+    return tree
 
 @app.get("/unlocks/{course_id}")
 def unlocks(course_id: str):
