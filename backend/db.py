@@ -2,7 +2,7 @@ import sqlite3
 import json
 import os
 
-DB_PATH = "prereqs.db"
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prereqs.db")
 
 
 def get_conn():
