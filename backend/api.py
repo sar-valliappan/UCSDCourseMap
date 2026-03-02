@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import db
+import backend.db as db
 from backend.prereqs import build_tree, load_all_courses, print_tree
 
 app = FastAPI()
