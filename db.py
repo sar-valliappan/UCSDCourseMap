@@ -142,7 +142,26 @@ def get_prereqs(course_id):
     conn.close()
     return sorted(result, key=lambda g: g["sequence"])
 
+def get_unlocks(course_id):
+    """
+    Reverse lookup — returns all courses that list course_id as a prereq option.
+    i.e. what does taking this course unlock?
+    """
+    conn = get_conn()
+    rows = conn.execute(
+        """
+        SELECT DISTINCT pg.course_id
+        FROM prereq_options po
+        JOIN prereq_groups pg ON po.group_id = pg.id
+        WHERE po.course_id = ?
+        ORDER BY pg.course_id
+        """,
+        (course_id,),
+    ).fetchall()
+    conn.close()
+    return [r["course_id"] for r in rows]
 
 if __name__ == "__main__":
     load_all()
     print(get_prereqs("CSE100"))
+    print(get_unlocks("CSE12"))
