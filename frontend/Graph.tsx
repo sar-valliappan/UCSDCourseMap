@@ -2,10 +2,11 @@ import { useMemo } from 'react'
 import { ReactFlow, Controls, Background, BackgroundVariant, MiniMap } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import CourseNode from './Coursenode'
+import GateNode from './GateNode'
 import { buildPrereqGraph, buildUnlocksGraph } from './useLayout'
 import type { PrereqTreeNode } from './useLayout'
 
-const nodeTypes = { courseNode: CourseNode }
+const nodeTypes = { courseNode: CourseNode, orNode: GateNode, andNode: GateNode }
 
 interface Props {
   tree: PrereqTreeNode | null

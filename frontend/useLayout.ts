@@ -5,6 +5,8 @@ import dagre from '@dagrejs/dagre'
 
 const NODE_WIDTH = 140
 const NODE_HEIGHT = 40
+const GATE_WIDTH = 52
+const GATE_HEIGHT = 28
 const API_BASE = 'http://localhost:8000'
 
 export interface NodeData {
@@ -23,13 +25,20 @@ export interface PrereqTreeNode {
   note?: string
 }
 
+function nodeSize(type: string | undefined) {
+  return type === 'orNode' || type === 'andNode'
+    ? { w: GATE_WIDTH, h: GATE_HEIGHT }
+    : { w: NODE_WIDTH, h: NODE_HEIGHT }
+}
+
 function applyDagre(nodes: Node[], edges: Edge[]): Node[] {
   const g = new dagre.graphlib.Graph()
   g.setDefaultEdgeLabel(() => ({}))
-  g.setGraph({ rankdir: 'LR', nodesep: 60, ranksep: 80 })
+  g.setGraph({ rankdir: 'LR', nodesep: 50, ranksep: 120, ranker: 'longest-path' })
 
   for (const node of nodes) {
-    g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT })
+    const { w, h } = nodeSize(node.type)
+    g.setNode(node.id, { width: w, height: h })
   }
   for (const edge of edges) {
     g.setEdge(edge.source, edge.target)
@@ -39,7 +48,8 @@ function applyDagre(nodes: Node[], edges: Edge[]): Node[] {
 
   return nodes.map((node) => {
     const { x, y } = g.node(node.id)
-    return { ...node, position: { x: x - NODE_WIDTH / 2, y: y - NODE_HEIGHT / 2 } }
+    const { w, h } = nodeSize(node.type)
+    return { ...node, position: { x: x - w / 2, y: y - h / 2 } }
   })
 }
 
@@ -70,14 +80,54 @@ function collectGraph(
     })
   }
 
-  for (const group of tree.prereqs) {
-    for (const option of group.options) {
-      const sourceId = option.course_id
-      const edgeId = `${sourceId}->${targetId}`
-      if (!edgeSet.has(edgeId)) {
-        edgeSet.set(edgeId, makeEdge(sourceId, targetId))
+  const groups = tree.prereqs
+  if (groups.length === 0) return
+
+  // Multiple groups → AND gate sits between groups and the course
+  let connectTo = targetId
+  if (groups.length > 1) {
+    const andId = `and__${targetId}`
+    if (!nodeSet.has(andId)) {
+      nodeSet.set(andId, {
+        id: andId,
+        type: 'andNode',
+        position: { x: 0, y: 0 },
+        data: { label: 'AND' },
+      })
+    }
+    if (!edgeSet.has(`${andId}->${targetId}`)) {
+      edgeSet.set(`${andId}->${targetId}`, makeEdge(andId, targetId))
+    }
+    connectTo = andId
+  }
+
+  for (const { sequence, options } of groups) {
+    if (options.length === 1) {
+      // Single option: direct edge to connectTo
+      const sourceId = options[0].course_id
+      const edgeId = `${sourceId}->${connectTo}`
+      if (!edgeSet.has(edgeId)) edgeSet.set(edgeId, makeEdge(sourceId, connectTo))
+      collectGraph(options[0], nodeSet, edgeSet, rootId)
+    } else {
+      // Multiple options: OR gate fans in, then connects to connectTo
+      const orId = `or__${targetId}__${sequence}`
+      if (!nodeSet.has(orId)) {
+        nodeSet.set(orId, {
+          id: orId,
+          type: 'orNode',
+          position: { x: 0, y: 0 },
+          data: { label: 'OR' },
+        })
       }
-      collectGraph(option, nodeSet, edgeSet, rootId)
+      if (!edgeSet.has(`${orId}->${connectTo}`)) {
+        edgeSet.set(`${orId}->${connectTo}`, makeEdge(orId, connectTo))
+      }
+      for (const option of options) {
+        const sourceId = option.course_id
+        const edgeId = `${sourceId}->${orId}`
+        if (!edgeSet.has(edgeId)) edgeSet.set(edgeId, makeEdge(sourceId, orId))
+        collectGraph(option, nodeSet, edgeSet, rootId)
+      }
     }
   }
 }
