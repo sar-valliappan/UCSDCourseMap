@@ -1,5 +1,6 @@
-import { useMemo } from 'react'
-import { ReactFlow, Controls, Background, BackgroundVariant, MiniMap } from '@xyflow/react'
+import { useEffect, useMemo } from 'react'
+import { ReactFlow, Controls, Background, BackgroundVariant, useReactFlow } from '@xyflow/react'
+import type { Node } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import CourseNode from './Coursenode'
 import GateNode from './GateNode'
@@ -7,6 +8,14 @@ import { buildPrereqGraph, buildUnlocksGraph } from './useLayout'
 import type { PrereqTreeNode } from './useLayout'
 
 const nodeTypes = { courseNode: CourseNode, orNode: GateNode, andNode: GateNode }
+
+function AutoFit({ nodes }: { nodes: Node[] }) {
+  const { fitView } = useReactFlow()
+  useEffect(() => {
+    if (nodes.length > 0) fitView({ padding: 0.2, duration: 300 })
+  }, [nodes, fitView])
+  return null
+}
 
 interface Props {
   tree: PrereqTreeNode | null
@@ -28,12 +37,11 @@ export default function Graph({ tree, unlocks, mode, activeCourse }: Props) {
       nodes={nodes}
       edges={edges}
       nodeTypes={nodeTypes}
-      fitView
-      fitViewOptions={{ padding: 0.2 }}
       minZoom={0.2}
       proOptions={{ hideAttribution: true }}
       style={{ background: '#060d18' }}
     >
+      <AutoFit nodes={nodes} />
       <Background
         variant={BackgroundVariant.Dots}
         gap={24}

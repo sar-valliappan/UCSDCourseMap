@@ -1,11 +1,76 @@
+import { useState } from 'react'
 import Graph from './Graph'
 import { useLayout } from './useLayout'
 
+const inputStyle: React.CSSProperties = {
+  background: '#0f1923',
+  border: '1px solid #1e3a5f',
+  borderRadius: 6,
+  padding: '8px 12px',
+  color: '#e2e8f0',
+  fontFamily: "'IBM Plex Mono', monospace",
+  fontSize: 13,
+  outline: 'none',
+  width: 180,
+}
+
+const buttonStyle: React.CSSProperties = {
+  background: '#0c2340',
+  border: '1px solid #0369a1',
+  borderRadius: 6,
+  padding: '8px 14px',
+  color: '#38bdf8',
+  fontFamily: "'IBM Plex Mono', monospace",
+  fontSize: 12,
+  cursor: 'pointer',
+}
+
 export default function App() {
-  const { tree, loading, error } = useLayout('CSE30')
+  const [draft, setDraft] = useState('CSE30')
+  const [courseId, setCourseId] = useState('CSE30')
+  const { tree, loading, error } = useLayout(courseId)
 
-  if (loading) return <div style={{ padding: 24, color: '#94a3b8' }}>Loading…</div>
-  if (error) return <div style={{ padding: 24, color: 'red' }}>Error: {error}</div>
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const trimmed = draft.trim().toUpperCase()
+    if (trimmed) setCourseId(trimmed)
+  }
 
-  return <Graph tree={tree} unlocks={[]} mode="prereqs" activeCourse="CSE30" />
+  return (
+    <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          position: 'absolute',
+          top: 16,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 10,
+          display: 'flex',
+          gap: 8,
+          alignItems: 'center',
+        }}
+      >
+        <input
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          placeholder="e.g. CSE100"
+          style={inputStyle}
+        />
+        <button type="submit" style={buttonStyle}>View</button>
+        {loading && (
+          <span style={{ color: '#475569', fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>
+            loading…
+          </span>
+        )}
+        {error && (
+          <span style={{ color: '#f87171', fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>
+            {error}
+          </span>
+        )}
+      </form>
+
+      <Graph tree={tree} unlocks={[]} mode="prereqs" activeCourse={courseId} />
+    </div>
+  )
 }
