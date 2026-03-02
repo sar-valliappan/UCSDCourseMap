@@ -249,8 +249,11 @@ export function useUnlocksLayout(courseId: string) {
     setError(null)
     setLoading(true)
     fetch(`${API_BASE}/unlocks/${courseId}`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
+      .then(async (r) => {
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({}))
+          throw new Error((body as { detail?: string }).detail ?? `${r.status} ${r.statusText}`)
+        }
         return r.json() as Promise<{ course_id: string; unlocks: string[] }>
       })
       .then((data) => setUnlockData(new Map([[courseId, data.unlocks]])))
@@ -282,8 +285,11 @@ export function useLayout(courseId: string) {
     setTree(null)
 
     fetch(`${API_BASE}/tree/${courseId}`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
+      .then(async (r) => {
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({}))
+          throw new Error((body as { detail?: string }).detail ?? `${r.status} ${r.statusText}`)
+        }
         return r.json() as Promise<PrereqTreeNode>
       })
       .then(setTree)

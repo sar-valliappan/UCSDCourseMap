@@ -28,6 +28,8 @@ def prereqs(course_id: str):
 def tree(course_id: str):
     """Full recursive prereq tree for a course."""
     course_id = course_id.upper()
+    if course_id not in courses:
+        raise HTTPException(status_code=404, detail=f"Course {course_id} not found")
     tree = build_tree(course_id, courses)
     print_tree(tree)
     return tree
@@ -43,5 +45,7 @@ def search(q: str = ""):
 def unlocks(course_id: str):
     """Courses that this course unlocks (reverse prereq lookup)."""
     course_id = course_id.upper()
+    if course_id not in courses:
+        raise HTTPException(status_code=404, detail=f"Course {course_id} not found")
     result = db.get_unlocks(course_id)
     return {"course_id": course_id, "unlocks": result}
