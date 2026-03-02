@@ -1,78 +1,21 @@
-import { useEffect, useState } from 'react'
+import { ReactFlow } from '@xyflow/react'
+import '@xyflow/react/dist/style.css'
 
-const API_BASE = 'http://localhost:8000'
+const nodes = [
+  { id: '1', position: { x: 0, y: 0 }, data: { label: 'CSE 11' } },
+  { id: '2', position: { x: 200, y: 0 }, data: { label: 'CSE 12' } },
+  { id: '3', position: { x: 100, y: 150 }, data: { label: 'CSE 15L' } },
+]
 
-// ---- types ----
+const edges = [
+  { id: 'e1-3', source: '1', target: '3' },
+  { id: 'e2-3', source: '2', target: '3' },
+]
 
-interface PrereqGroup {
-  sequence: number
-  options: CourseNode[]
-}
-
-export interface CourseNode {
-  course_id: string
-  prereqs: PrereqGroup[]
-  note?: string
-}
-
-// ---- data fetching ----
-
-async function fetchPrereqs(courseId: string): Promise<CourseNode> {
-  const res = await fetch(`${API_BASE}/tree/${courseId}`)
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
-  return res.json()
-}
-
-export function useGraph(courseId: string) {
-  const [tree, setTree] = useState<CourseNode | null>(null)
-
-  useEffect(() => {
-    fetchPrereqs(courseId)
-      .then((data) => {
-        console.log(data)
-        setTree(data)
-      })
-      .catch(console.error)
-  }, [courseId])
-
-  return tree
-}
-
-// ---- tree view ----
-
-function TreeNode({ node }: { node: CourseNode }) {
+export default function Graph() {
   return (
-    <li>
-      <strong>{node.course_id}</strong>
-      {node.note && <em> ({node.note})</em>}
-      {node.prereqs.length > 0 && (
-        <ul>
-          {node.prereqs.map((group) => (
-            <li key={group.sequence}>
-              {group.options.length === 1 ? (
-                <TreeNode node={group.options[0]} />
-              ) : (
-                <>
-                  <em>pick one of:</em>
-                  <ul>
-                    {group.options.map((opt) => (
-                      <TreeNode key={opt.course_id} node={opt} />
-                    ))}
-                  </ul>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </li>
-  )
-}
-
-export function TreeView({ tree }: { tree: CourseNode }) {
-  return (
-    <ul>
-      <TreeNode node={tree} />
-    </ul>
+    <div style={{ width: '100vw', height: '100vh' }}>
+      <ReactFlow nodes={nodes} edges={edges} fitView />
+    </div>
   )
 }
