@@ -63,82 +63,58 @@ function makeEdge(sourceId: string, targetId: string): Edge {
   }
 }
 
+// pathId is unique per tree position; course_id is just the display label.
+// This means the same course appearing in multiple branches gets its own node
+// in each branch, giving a true layer-by-layer tree layout.
 function collectGraph(
   tree: PrereqTreeNode,
-  nodeSet: Map<string, Node>,
-  edgeSet: Map<string, Edge>,
+  nodes: Node[],
+  edges: Edge[],
   rootId: string,
+  pathId: string,
 ) {
-  const targetId = tree.course_id
-
-  if (!nodeSet.has(targetId)) {
-    nodeSet.set(targetId, {
-      id: targetId,
-      type: 'courseNode',
-      position: { x: 0, y: 0 },
-      data: { label: targetId, isRoot: targetId === rootId, isCycle: tree.note === 'cycle' },
-    })
-  }
+  nodes.push({
+    id: pathId,
+    type: 'courseNode',
+    position: { x: 0, y: 0 },
+    data: { label: tree.course_id, isRoot: pathId === rootId, isCycle: tree.note === 'cycle' },
+  })
 
   const groups = tree.prereqs
   if (groups.length === 0) return
 
-  // Multiple groups → AND gate sits between groups and the course
-  let connectTo = targetId
+  // Multiple groups → AND gate between groups and this node
+  let connectTo = pathId
   if (groups.length > 1) {
-    const andId = `and__${targetId}`
-    if (!nodeSet.has(andId)) {
-      nodeSet.set(andId, {
-        id: andId,
-        type: 'andNode',
-        position: { x: 0, y: 0 },
-        data: { label: 'AND' },
-      })
-    }
-    if (!edgeSet.has(`${andId}->${targetId}`)) {
-      edgeSet.set(`${andId}->${targetId}`, makeEdge(andId, targetId))
-    }
+    const andId = `${pathId}::and`
+    nodes.push({ id: andId, type: 'andNode', position: { x: 0, y: 0 }, data: { label: 'AND' } })
+    edges.push(makeEdge(andId, pathId))
     connectTo = andId
   }
 
   for (const { sequence, options } of groups) {
     if (options.length === 1) {
-      // Single option: direct edge to connectTo
-      const sourceId = options[0].course_id
-      const edgeId = `${sourceId}->${connectTo}`
-      if (!edgeSet.has(edgeId)) edgeSet.set(edgeId, makeEdge(sourceId, connectTo))
-      collectGraph(options[0], nodeSet, edgeSet, rootId)
+      const childPath = `${pathId}::${options[0].course_id}`
+      edges.push(makeEdge(childPath, connectTo))
+      collectGraph(options[0], nodes, edges, rootId, childPath)
     } else {
-      // Multiple options: OR gate fans in, then connects to connectTo
-      const orId = `or__${targetId}__${sequence}`
-      if (!nodeSet.has(orId)) {
-        nodeSet.set(orId, {
-          id: orId,
-          type: 'orNode',
-          position: { x: 0, y: 0 },
-          data: { label: 'OR' },
-        })
-      }
-      if (!edgeSet.has(`${orId}->${connectTo}`)) {
-        edgeSet.set(`${orId}->${connectTo}`, makeEdge(orId, connectTo))
-      }
+      const orId = `${pathId}::or${sequence}`
+      nodes.push({ id: orId, type: 'orNode', position: { x: 0, y: 0 }, data: { label: 'OR' } })
+      edges.push(makeEdge(orId, connectTo))
       for (const option of options) {
-        const sourceId = option.course_id
-        const edgeId = `${sourceId}->${orId}`
-        if (!edgeSet.has(edgeId)) edgeSet.set(edgeId, makeEdge(sourceId, orId))
-        collectGraph(option, nodeSet, edgeSet, rootId)
+        const childPath = `${pathId}::or${sequence}::${option.course_id}`
+        edges.push(makeEdge(childPath, orId))
+        collectGraph(option, nodes, edges, rootId, childPath)
       }
     }
   }
 }
 
 export function buildPrereqGraph(tree: PrereqTreeNode): { nodes: Node[]; edges: Edge[] } {
-  const nodeSet = new Map<string, Node>()
-  const edgeSet = new Map<string, Edge>()
-  collectGraph(tree, nodeSet, edgeSet, tree.course_id)
-  const rawNodes = [...nodeSet.values()]
-  const rawEdges = [...edgeSet.values()]
-  return { nodes: applyDagre(rawNodes, rawEdges), edges: rawEdges }
+  const nodes: Node[] = []
+  const edges: Edge[] = []
+  collectGraph(tree, nodes, edges, tree.course_id, tree.course_id)
+  return { nodes: applyDagre(nodes, edges), edges }
 }
 
 export function buildUnlocksGraph(
