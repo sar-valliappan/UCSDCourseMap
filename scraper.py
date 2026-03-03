@@ -63,7 +63,6 @@ def get_course_ids(catalog_url):
             courses.append((subject, number))
     return courses
 
-
 def get_descriptions(catalog_url):
     """Scrape course descriptions from a catalog page."""
     resp = session.get(catalog_url, timeout=15)
@@ -88,15 +87,15 @@ def get_descriptions(catalog_url):
             if dd:
                 descriptions[course_id] = dd.get_text(" ", strip=True)
         else:
-            # Extract description after the units "(4)" or "(4-8)" part
-            desc_match = re.search(r"\(\d+(?:[–\-]\d+)?\)\s*(.+)$", text, re.DOTALL)
-            if desc_match:
-                desc = desc_match.group(1).strip()
-                if desc:
-                    descriptions[course_id] = desc
+            # Description is in the next <p> sibling (separate from the heading)
+            next_p = tag.find_next_sibling("p")
+            if next_p:
+                next_text = next_p.get_text(" ", strip=True)
+                # Only use it if it's not another course heading
+                if not re.match(r"^[A-Z]+\s+\w+\.", next_text):
+                    descriptions[course_id] = next_text
 
     return descriptions
-
 
 def get_prereqs(subject, number, term="WI26"):
     course_id = f"{subject}{number}"
