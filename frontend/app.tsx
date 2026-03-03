@@ -26,11 +26,17 @@ const buttonStyle: React.CSSProperties = {
 }
 
 export default function App() {
-  const [draft, setDraft] = useState('CSE12')
+  const params = new URLSearchParams(window.location.search)
+  const [draft, setDraft] = useState(params.get('course') ?? 'CSE12')
   const [suggestions, setSuggestions] = useState<string[]>([])
-  const [courseId, setCourseId] = useState('CSE12')
-  const [mode, setMode] = useState<'prereqs' | 'unlocks'>('unlocks')
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set(['CSE12']))
+  const [courseId, setCourseId] = useState(params.get('course') ?? 'CSE12')
+  const [mode, setMode] = useState<'prereqs' | 'unlocks'>((params.get('mode') as 'prereqs' | 'unlocks') ?? 'unlocks')
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set([params.get('course') ?? 'CSE12']))
+
+  useEffect(() => {
+    const p = new URLSearchParams({ course: courseId, mode })
+    window.history.replaceState(null, '', '?' + p)
+  }, [courseId, mode])
   const { tree, loading: prereqLoading, error: prereqError } = useLayout(courseId)
   const { unlockData, loading: unlockLoading, error: unlockError, fetchUnlocks } = useUnlocksLayout(courseId)
 
