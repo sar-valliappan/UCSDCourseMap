@@ -271,6 +271,12 @@ export default function App() {
         expandedNodes={expandedNodes}
         onNodeExpand={handleNodeExpand}
         onNodeCollapse={handleNodeCollapse}
+        onCourseSelect={id => {
+          setCourseId(id)
+          setDraft(id)
+          setExpandedNodes(new Set([id]))
+          skipSuggestions.current = true
+        }}
       />
     </div>
   )
