@@ -2,12 +2,18 @@ import { useEffect, useMemo, useState } from 'react'
 import { MarkerType } from '@xyflow/react'
 import type { Node, Edge } from '@xyflow/react'
 import dagre from '@dagrejs/dagre'
+import courseData from './courseData.json'
 
 const NODE_WIDTH = 140
 const NODE_HEIGHT = 40
 const GATE_WIDTH = 52
 const GATE_HEIGHT = 28
-const API_BASE = 'http://localhost:8000'
+
+// Static data from build.py
+type RawGroup = { sequence: number; options: string[] }
+const COURSES = courseData.courses as Record<string, RawGroup[]>
+const UNLOCKS = courseData.unlocks as Record<string, string[]>
+export const COURSE_IDS: string[] = courseData.courseIds as string[]
 
 export interface NodeData {
   label: string
@@ -27,9 +33,24 @@ export interface PrereqTreeNode {
   note?: string
 }
 
-// unlockData maps courseId -> direct unlocks fetched from the API.
-// Absence from the map means "not yet fetched".
+// unlockData maps courseId -> its direct unlocks (populated lazily as nodes are expanded)
 export type UnlockData = Map<string, string[]>
+
+// Build a full recursive prereq tree from static data
+function buildTreeFromData(courseId: string, visited: Set<string>): PrereqTreeNode {
+  if (visited.has(courseId)) {
+    return { course_id: courseId, prereqs: [], note: 'cycle' }
+  }
+  const next = new Set([...visited, courseId])
+  const groups = COURSES[courseId] ?? []
+  return {
+    course_id: courseId,
+    prereqs: groups.map(g => ({
+      sequence: g.sequence,
+      options: g.options.map(optId => buildTreeFromData(optId, next)),
+    })),
+  }
+}
 
 function nodeSize(type: string | undefined) {
   return type === 'orNode' || type === 'andNode'
@@ -67,60 +88,6 @@ function makeEdge(sourceId: string, targetId: string): Edge {
     type: 'straight',
     markerEnd: { type: MarkerType.Arrow },
   }
-}
-
-// pathId is unique per tree position; course_id is just the display label.
-// This means the same course appearing in multiple branches gets its own node
-// in each branch, giving a true layer-by-layer tree layout.
-function collectGraph(
-  tree: PrereqTreeNode,
-  nodes: Node[],
-  edges: Edge[],
-  rootId: string,
-  pathId: string,
-) {
-  nodes.push({
-    id: pathId,
-    type: 'courseNode',
-    position: { x: 0, y: 0 },
-    data: { label: tree.course_id, isRoot: pathId === rootId, isCycle: tree.note === 'cycle' },
-  })
-
-  const groups = tree.prereqs
-  if (groups.length === 0) return
-
-  // Multiple groups → AND gate between groups and this node
-  let connectTo = pathId
-  if (groups.length > 1) {
-    const andId = `${pathId}::and`
-    nodes.push({ id: andId, type: 'andNode', position: { x: 0, y: 0 }, data: { label: 'AND' } })
-    edges.push(makeEdge(andId, pathId))
-    connectTo = andId
-  }
-
-  for (const { sequence, options } of groups) {
-    if (options.length === 1) {
-      const childPath = `${pathId}::${options[0].course_id}`
-      edges.push(makeEdge(childPath, connectTo))
-      collectGraph(options[0], nodes, edges, rootId, childPath)
-    } else {
-      const orId = `${pathId}::or${sequence}`
-      nodes.push({ id: orId, type: 'orNode', position: { x: 0, y: 0 }, data: { label: 'OR' } })
-      edges.push(makeEdge(orId, connectTo))
-      for (const option of options) {
-        const childPath = `${pathId}::or${sequence}::${option.course_id}`
-        edges.push(makeEdge(childPath, orId))
-        collectGraph(option, nodes, edges, rootId, childPath)
-      }
-    }
-  }
-}
-
-export function buildPrereqGraph(tree: PrereqTreeNode): { nodes: Node[]; edges: Edge[] } {
-  const nodes: Node[] = []
-  const edges: Edge[] = []
-  collectGraph(tree, nodes, edges, tree.course_id, tree.course_id)
-  return { nodes: applyDagre(nodes, edges), edges }
 }
 
 function collectLazyGraph(
@@ -197,12 +164,11 @@ function collectLazyUnlocksGraph(
   visitedCourses: Set<string>,
 ) {
   const isCycle = visitedCourses.has(courseId)
-  const fetched = unlockData.has(courseId)
   const directUnlocks = unlockData.get(courseId) ?? []
   const isExpanded = expandedNodes.has(pathId)
-  const hasUnlocks = directUnlocks.length > 0
-  // Show + if not expanded and (not yet fetched, or has known unlocks)
-  const expandable = !isCycle && !isExpanded && (!fetched || hasUnlocks)
+  // Use static data to know immediately whether a course has unlocks
+  const hasUnlocks = (UNLOCKS[courseId]?.length ?? 0) > 0
+  const expandable = !isCycle && !isExpanded && hasUnlocks
   const collapsible = !isCycle && isExpanded && pathId !== rootPathId
 
   nodes.push({
@@ -218,7 +184,7 @@ function collectLazyUnlocksGraph(
     },
   })
 
-  if (isCycle || !isExpanded || !fetched || !hasUnlocks) return
+  if (isCycle || !isExpanded || directUnlocks.length === 0) return
 
   const nextVisited = new Set([...visitedCourses, courseId])
   for (const childId of directUnlocks) {
@@ -239,63 +205,29 @@ export function buildLazyUnlocksGraph(
   return { nodes: applyDagre(nodes, edges), edges }
 }
 
+export function useLayout(courseId: string) {
+  return useMemo(() => {
+    if (!(courseId in COURSES)) {
+      return { tree: null, loading: false, error: `Course ${courseId} not found` }
+    }
+    return { tree: buildTreeFromData(courseId, new Set()), loading: false, error: null }
+  }, [courseId])
+}
+
 export function useUnlocksLayout(courseId: string) {
-  const [unlockData, setUnlockData] = useState<UnlockData>(new Map())
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [unlockData, setUnlockData] = useState<UnlockData>(
+    () => new Map([[courseId, UNLOCKS[courseId] ?? []]]),
+  )
 
   useEffect(() => {
-    setUnlockData(new Map())
-    setError(null)
-    setLoading(true)
-    fetch(`${API_BASE}/unlocks/${courseId}`)
-      .then(async (r) => {
-        if (!r.ok) {
-          const body = await r.json().catch(() => ({}))
-          throw new Error((body as { detail?: string }).detail ?? `${r.status} ${r.statusText}`)
-        }
-        return r.json() as Promise<{ course_id: string; unlocks: string[] }>
-      })
-      .then((data) => setUnlockData(new Map([[courseId, data.unlocks]])))
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setLoading(false))
+    setUnlockData(new Map([[courseId, UNLOCKS[courseId] ?? []]]))
   }, [courseId])
 
   function fetchUnlocks(subCourseId: string) {
     if (unlockData.has(subCourseId)) return
-    fetch(`${API_BASE}/unlocks/${subCourseId}`)
-      .then((r) => r.json() as Promise<{ course_id: string; unlocks: string[] }>)
-      .then((data) =>
-        setUnlockData((prev) => new Map([...prev, [subCourseId, data.unlocks]])),
-      )
-      .catch(() => {/* swallow sub-fetch errors */})
+    setUnlockData(prev => new Map([...prev, [subCourseId, UNLOCKS[subCourseId] ?? []]]))
   }
 
-  return { unlockData, loading, error, fetchUnlocks }
-}
-
-export function useLayout(courseId: string) {
-  const [tree, setTree] = useState<PrereqTreeNode | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    setLoading(true)
-    setError(null)
-    setTree(null)
-
-    fetch(`${API_BASE}/tree/${courseId}`)
-      .then(async (r) => {
-        if (!r.ok) {
-          const body = await r.json().catch(() => ({}))
-          throw new Error((body as { detail?: string }).detail ?? `${r.status} ${r.statusText}`)
-        }
-        return r.json() as Promise<PrereqTreeNode>
-      })
-      .then(setTree)
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [courseId])
-
-  return { tree, loading, error }
+  const error = courseId in COURSES ? null : `Course ${courseId} not found`
+  return { unlockData, loading: false, error, fetchUnlocks }
 }

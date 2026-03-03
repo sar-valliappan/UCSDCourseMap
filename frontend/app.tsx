@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import Graph from './Graph'
-import { useLayout, useUnlocksLayout } from './useLayout'
+import { useLayout, useUnlocksLayout, COURSE_IDS } from './useLayout'
 
 const inputStyle: React.CSSProperties = {
   background: '#0f1923',
@@ -36,10 +36,8 @@ export default function App() {
 
   useEffect(() => {
     if (!draft) { setSuggestions([]); return }
-    fetch(`http://localhost:8000/search?q=${encodeURIComponent(draft)}`)
-      .then(r => r.json())
-      .then(setSuggestions)
-      .catch(() => setSuggestions([]))
+    const q = draft.toUpperCase()
+    setSuggestions(COURSE_IDS.filter(id => id.startsWith(q)).slice(0, 12))
   }, [draft])
 
   const loading = mode === 'prereqs' ? prereqLoading : unlockLoading
