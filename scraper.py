@@ -64,6 +64,40 @@ def get_course_ids(catalog_url):
     return courses
 
 
+def get_descriptions(catalog_url):
+    """Scrape course descriptions from a catalog page."""
+    resp = session.get(catalog_url, timeout=15)
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    descriptions = {}
+    for tag in soup.find_all(["p", "dt"]):
+        text = tag.get_text(" ", strip=True)
+        match = re.match(r"^([A-Z]+)\s+(\w+)\.", text)
+        if not match:
+            continue
+        subject, number = match.group(1), match.group(2)
+        num_match = re.match(r"(\d+)", number)
+        if not num_match:
+            continue
+        if int(num_match.group(1)) >= 200:
+            break
+        course_id = f"{subject}{number}"
+        if tag.name == "dt":
+            dd = tag.find_next_sibling("dd")
+            if dd:
+                descriptions[course_id] = dd.get_text(" ", strip=True)
+        else:
+            # Extract description after the units "(4)" or "(4-8)" part
+            desc_match = re.search(r"\(\d+(?:[–\-]\d+)?\)\s*(.+)$", text, re.DOTALL)
+            if desc_match:
+                desc = desc_match.group(1).strip()
+                if desc:
+                    descriptions[course_id] = desc
+
+    return descriptions
+
+
 def get_prereqs(subject, number, term="WI26"):
     course_id = f"{subject}{number}"
     resp = session.get(
@@ -110,7 +144,8 @@ def get_prereqs(subject, number, term="WI26"):
 def scrape_dept(code, term):
     url = f"{CATALOG_BASE}/courses/{code.upper()}.html"
     course_ids = get_course_ids(url)
-    print(f"Found {len(course_ids)} courses")
+    descriptions = get_descriptions(url)
+    print(f"Found {len(course_ids)} courses, {len(descriptions)} descriptions")
 
     if not course_ids:
         print("No courses found, skipping.")
@@ -121,7 +156,7 @@ def scrape_dept(code, term):
         by_prefix.setdefault(subject, []).append((subject, number))
 
     for prefix, courses in by_prefix.items():
-        scrape_courses(courses, term, f"data/{prefix}.json")
+        scrape_courses(courses, term, f"data/{prefix}.json", descriptions)
 
 
 def scrape_all(term):
@@ -135,16 +170,19 @@ def scrape_all(term):
         print()
 
 
-def scrape_courses(course_ids, term, out):
+def scrape_courses(course_ids, term, out, descriptions=None):
     results = []
     for i, (subject, number) in enumerate(course_ids):
-        print(f"[{i+1}/{len(course_ids)}] {subject}{number}", end=" ", flush=True)
+        course_id = f"{subject}{number}"
+        print(f"[{i+1}/{len(course_ids)}] {course_id}", end=" ", flush=True)
         try:
             result = get_prereqs(subject, number, term)
             print(f"({len(result['prereqs'])} groups)")
         except Exception as e:
             print(f"(error: {e})")
-            result = {"course_id": f"{subject}{number}", "term": term, "prereqs": []}
+            result = {"course_id": course_id, "term": term, "prereqs": []}
+        if descriptions and course_id in descriptions:
+            result["description"] = descriptions[course_id]
         results.append(result)
 
     with open(out, "w") as f:
