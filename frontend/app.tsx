@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Graph from './Graph'
 import { useLayout, useUnlocksLayout, COURSE_IDS, DESCRIPTIONS } from './useLayout'
 
@@ -39,6 +39,8 @@ export default function App() {
   const [mode, setMode] = useState<'prereqs' | 'unlocks'>((params.get('mode') as 'prereqs' | 'unlocks') ?? 'unlocks')
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set([params.get('course') ?? 'CSE12']))
   const [descExpanded, setDescExpanded] = useState(false)
+  const [highlightIdx, setHighlightIdx] = useState(-1)
+  const skipSuggestions = useRef(false)
 
   useEffect(() => {
     const p = new URLSearchParams({ course: courseId, mode })
@@ -49,9 +51,11 @@ export default function App() {
   const { unlockData, loading: unlockLoading, error: unlockError, fetchUnlocks } = useUnlocksLayout(courseId)
 
   useEffect(() => {
+    if (skipSuggestions.current) { skipSuggestions.current = false; return }
     if (!draft) { setSuggestions([]); return }
     const q = draft.toUpperCase()
     setSuggestions(COURSE_IDS.filter(id => id.startsWith(q)).slice(0, 12))
+    setHighlightIdx(-1)
   }, [draft])
 
   const loading = mode === 'prereqs' ? prereqLoading : unlockLoading
@@ -63,6 +67,7 @@ export default function App() {
     if (trimmed) {
       setCourseId(trimmed)
       setExpandedNodes(new Set([trimmed]))
+      setSuggestions([])
     }
   }
 
@@ -117,7 +122,26 @@ export default function App() {
           <input
             value={draft}
             onChange={e => setDraft(e.target.value)}
-            onBlur={() => setTimeout(() => setSuggestions([]), 150)}
+            onBlur={() => setTimeout(() => { setSuggestions([]); setHighlightIdx(-1) }, 150)}
+            onKeyDown={e => {
+              if (!suggestions.length) return
+              if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                setHighlightIdx(i => Math.min(i + 1, suggestions.length - 1))
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setHighlightIdx(i => Math.max(i - 1, -1))
+              } else if (e.key === 'Enter' && highlightIdx >= 0) {
+                e.preventDefault()
+                const s = suggestions[highlightIdx]
+                skipSuggestions.current = true
+                setDraft(s)
+                setSuggestions([])
+                setCourseId(s)
+                setExpandedNodes(new Set([s]))
+                setHighlightIdx(-1)
+              }
+            }}
             placeholder="e.g. CSE100"
             style={inputStyle}
           />
@@ -135,24 +159,26 @@ export default function App() {
               minWidth: '100%',
               zIndex: 20,
             }}>
-              {suggestions.map(s => (
+              {suggestions.map((s, i) => (
                 <li
                   key={s}
                   onMouseDown={() => {
+                    skipSuggestions.current = true
                     setDraft(s)
                     setSuggestions([])
                     setCourseId(s)
                     setExpandedNodes(new Set([s]))
+                    setHighlightIdx(-1)
                   }}
+                  onMouseEnter={() => setHighlightIdx(i)}
+                  onMouseLeave={() => setHighlightIdx(-1)}
                   style={{
                     padding: '6px 12px',
                     fontFamily: "'IBM Plex Mono', monospace",
                     fontSize: 12,
-                    color: '#94a3b8',
+                    color: i === highlightIdx ? '#e2e8f0' : '#94a3b8',
                     cursor: 'pointer',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.color = '#e2e8f0')}
-                  onMouseLeave={e => (e.currentTarget.style.color = '#94a3b8')}
                 >
                   {s}
                 </li>
