@@ -14,6 +14,7 @@ OUT = "frontend/courseData.json"
 def main():
     # courses: {course_id: [{sequence, options: [course_id, ...]}]}
     courses: dict = {}
+    descriptions: dict = {}
     for fname in sorted(os.listdir(DATA_DIR)):
         if not fname.endswith(".json"):
             continue
@@ -27,8 +28,10 @@ def main():
                     }
                     for g in entry.get("prereqs", [])
                 ]
+                if entry.get("description"):
+                    descriptions[cid] = entry["description"]
 
-    print(f"Loaded {len(courses)} courses")
+    print(f"Loaded {len(courses)} courses, {len(descriptions)} descriptions")
 
     # Reverse mapping: what courses does each course unlock?
     unlocks: dict = defaultdict(list)
@@ -42,6 +45,7 @@ def main():
         "courses": courses,
         "unlocks": {k: sorted(v) for k, v in unlocks.items()},
         "courseIds": sorted(courses.keys()),
+        "descriptions": descriptions,
     }
 
     with open(OUT, "w") as f:

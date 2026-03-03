@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 import Graph from './Graph'
-import { useLayout, useUnlocksLayout, COURSE_IDS } from './useLayout'
+import { useLayout, useUnlocksLayout, COURSE_IDS, DESCRIPTIONS } from './useLayout'
+
+function getCatalogUrl(courseId: string): string {
+  const m = courseId.match(/^([A-Za-z]+)(\d+\w*)$/)
+  if (!m) return 'https://catalog.ucsd.edu/'
+  return `https://catalog.ucsd.edu/courses/${m[1].toUpperCase()}.html#${m[1].toLowerCase()}${m[2].toLowerCase()}`
+}
 
 const inputStyle: React.CSSProperties = {
   background: '#0f1923',
@@ -32,10 +38,12 @@ export default function App() {
   const [courseId, setCourseId] = useState(params.get('course') ?? 'CSE12')
   const [mode, setMode] = useState<'prereqs' | 'unlocks'>((params.get('mode') as 'prereqs' | 'unlocks') ?? 'unlocks')
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set([params.get('course') ?? 'CSE12']))
+  const [descExpanded, setDescExpanded] = useState(false)
 
   useEffect(() => {
     const p = new URLSearchParams({ course: courseId, mode })
     window.history.replaceState(null, '', '?' + p)
+    setDescExpanded(false)
   }, [courseId, mode])
   const { tree, loading: prereqLoading, error: prereqError } = useLayout(courseId)
   const { unlockData, loading: unlockLoading, error: unlockError, fetchUnlocks } = useUnlocksLayout(courseId)
@@ -86,14 +94,20 @@ export default function App() {
 
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
+      <div style={{
+        position: 'absolute',
+        top: 16,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 10,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 8,
+      }}>
       <form
         onSubmit={handleSubmit}
         style={{
-          position: 'absolute',
-          top: 16,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 10,
           display: 'flex',
           gap: 8,
           alignItems: 'center',
@@ -169,6 +183,59 @@ export default function App() {
           </span>
         )}
       </form>
+
+      {!loading && !error && (
+        <div style={{
+          background: '#0f1923',
+          border: '1px solid #1e3a5f',
+          borderRadius: 8,
+          padding: '10px 16px',
+          maxWidth: 480,
+        }}>
+          <a
+            href={getCatalogUrl(courseId)}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: '#38bdf8', fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, textDecoration: 'none' }}
+          >
+            {courseId} — UCSD Catalog ↗
+          </a>
+          {DESCRIPTIONS[courseId] && (
+            <>
+              <p style={{
+                color: '#94a3b8',
+                fontFamily: "'IBM Plex Mono', monospace",
+                fontSize: 11,
+                margin: '6px 0 0',
+                lineHeight: 1.6,
+                ...(descExpanded ? {} : {
+                  display: '-webkit-box',
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                }),
+              }}>
+                {DESCRIPTIONS[courseId]}
+              </p>
+              <button
+                onClick={() => setDescExpanded(v => !v)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: '4px 0 0',
+                  color: '#475569',
+                  fontFamily: "'IBM Plex Mono', monospace",
+                  fontSize: 10,
+                  cursor: 'pointer',
+                }}
+              >
+                {descExpanded ? '▲ less' : '▼ more'}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+      </div>
 
       <Graph
         tree={tree}

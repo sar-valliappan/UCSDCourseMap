@@ -14,6 +14,8 @@ type RawGroup = { sequence: number; options: string[] }
 const COURSES = courseData.courses as Record<string, RawGroup[]>
 const UNLOCKS = courseData.unlocks as Record<string, string[]>
 export const COURSE_IDS: string[] = courseData.courseIds as string[]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const DESCRIPTIONS: Record<string, string> = (courseData as any).descriptions ?? {}
 
 export interface NodeData {
   label: string
