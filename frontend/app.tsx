@@ -39,6 +39,7 @@ export default function App() {
   const [mode, setMode] = useState<'prereqs' | 'unlocks'>((params.get('mode') as 'prereqs' | 'unlocks') ?? 'unlocks')
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set([params.get('course') ?? 'CSE12']))
   const [descExpanded, setDescExpanded] = useState(false)
+  const [bubbleVisible, setBubbleVisible] = useState(true)
   const [highlightIdx, setHighlightIdx] = useState(-1)
   const skipSuggestions = useRef(false)
 
@@ -46,6 +47,7 @@ export default function App() {
     const p = new URLSearchParams({ course: courseId, mode })
     window.history.replaceState(null, '', '?' + p)
     setDescExpanded(false)
+    setBubbleVisible(true)
   }, [courseId, mode])
   const { tree, loading: prereqLoading, error: prereqError } = useLayout(courseId)
   const { unlockData, loading: unlockLoading, error: unlockError, fetchUnlocks } = useUnlocksLayout(courseId)
@@ -198,6 +200,22 @@ export default function App() {
         >
           {mode === 'prereqs' ? 'unlocks →' : '← prereqs'}
         </button>
+        {!loading && !error && (
+          <button
+            type="button"
+            onClick={() => setBubbleVisible(v => !v)}
+            title={bubbleVisible ? 'Hide description' : 'Show description'}
+            style={{
+              ...buttonStyle,
+              color: bubbleVisible ? '#38bdf8' : '#475569',
+              borderColor: bubbleVisible ? '#0369a1' : '#1e3a5f',
+              fontSize: 13,
+              padding: '6px 10px',
+            }}
+          >
+            ℹ
+          </button>
+        )}
         {loading && (
           <span style={{ color: '#475569', fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>
             loading…
@@ -210,14 +228,33 @@ export default function App() {
         )}
       </form>
 
-      {!loading && !error && (
+      {!loading && !error && bubbleVisible && (
         <div style={{
+          position: 'relative',
           background: '#0f1923',
           border: '1px solid #1e3a5f',
           borderRadius: 8,
-          padding: '10px 16px',
+          padding: '10px 32px 10px 16px',
           maxWidth: 480,
         }}>
+          <button
+            onClick={() => setBubbleVisible(false)}
+            style={{
+              position: 'absolute',
+              top: 6,
+              right: 8,
+              background: 'none',
+              border: 'none',
+              color: '#334f6e',
+              fontFamily: "'IBM Plex Mono', monospace",
+              fontSize: 13,
+              cursor: 'pointer',
+              lineHeight: 1,
+              padding: 2,
+            }}
+          >
+            ×
+          </button>
           <a
             href={getCatalogUrl(courseId)}
             target="_blank"
