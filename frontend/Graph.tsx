@@ -4,10 +4,11 @@ import type { Node } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import CourseNode from './CourseNode'
 import GateNode from './GateNode'
+import PrefixNode from './PrefixNode'
 import { buildLazyGraph, buildLazyUnlocksGraph, DESCRIPTIONS } from './useLayout'
 import type { PrereqTreeNode, UnlockData, NodeData } from './useLayout'
 
-const nodeTypes = { courseNode: CourseNode, orNode: GateNode, andNode: GateNode }
+const nodeTypes = { courseNode: CourseNode, orNode: GateNode, andNode: GateNode, prefixNode: PrefixNode }
 
 function AutoFit({ nodes }: { nodes: Node[] }) {
   const { fitView } = useReactFlow()
@@ -57,7 +58,7 @@ export default function Graph({ tree, unlockData, mode, activeCourse, expandedNo
       proOptions={{ hideAttribution: true }}
       style={{ background: '#060d18' }}
       onNodeClick={(_, node) => {
-        if (node.type !== 'courseNode') return
+        if (node.type !== 'courseNode' && node.type !== 'prefixNode') return
         const d = node.data as NodeData
         if (d.expandable) onNodeExpand(node.id)
         else if (d.collapsible) onNodeCollapse(node.id)

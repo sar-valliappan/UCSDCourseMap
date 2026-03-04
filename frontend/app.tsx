@@ -81,8 +81,8 @@ export default function App() {
   function handleNodeExpand(nodeId: string) {
     setExpandedNodes(prev => new Set([...prev, nodeId]))
     if (mode === 'unlocks') {
-      const subCourseId = nodeId.split('::').pop()!
-      fetchUnlocks(subCourseId)
+      const last = nodeId.split('::').pop()!
+      if (!last.startsWith('@')) fetchUnlocks(last)
     }
   }
 

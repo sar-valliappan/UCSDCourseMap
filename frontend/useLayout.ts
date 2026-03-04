@@ -23,6 +23,7 @@ export interface NodeData {
   isCycle?: boolean
   expandable?: boolean
   collapsible?: boolean
+  count?: number
   [key: string]: unknown
 }
 
@@ -188,11 +189,30 @@ function collectLazyUnlocksGraph(
 
   if (isCycle || !isExpanded || directUnlocks.length === 0) return
 
-  const nextVisited = new Set([...visitedCourses, courseId])
+  // Group direct unlocks by department prefix (e.g. CSE, MATH)
+  const byPrefix: Record<string, string[]> = {}
   for (const childId of directUnlocks) {
-    const childPath = `${pathId}::${childId}`
-    edges.push(makeEdge(pathId, childPath))
-    collectLazyUnlocksGraph(childId, unlockData, nodes, edges, rootPathId, childPath, expandedNodes, nextVisited)
+    const prefix = childId.match(/^([A-Za-z]+)/)?.[1] ?? childId
+    ;(byPrefix[prefix] ??= []).push(childId)
+  }
+
+  const nextVisited = new Set([...visitedCourses, courseId])
+  for (const [prefix, prefixCourses] of Object.entries(byPrefix)) {
+    const prefixPathId = `${pathId}::@${prefix}`
+    const isPrefixExpanded = expandedNodes.has(prefixPathId)
+    nodes.push({
+      id: prefixPathId,
+      type: 'prefixNode',
+      position: { x: 0, y: 0 },
+      data: { label: prefix, count: prefixCourses.length, expandable: !isPrefixExpanded, collapsible: isPrefixExpanded },
+    })
+    edges.push(makeEdge(pathId, prefixPathId))
+    if (!isPrefixExpanded) continue
+    for (const childId of prefixCourses) {
+      const childPath = `${prefixPathId}::${childId}`
+      edges.push(makeEdge(prefixPathId, childPath))
+      collectLazyUnlocksGraph(childId, unlockData, nodes, edges, rootPathId, childPath, expandedNodes, nextVisited)
+    }
   }
 }
 
