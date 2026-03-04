@@ -36,18 +36,19 @@ export default function App() {
   const [draft, setDraft] = useState(params.get('course') ?? 'CSE12')
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [courseId, setCourseId] = useState(params.get('course') ?? 'CSE12')
-  const [mode, setMode] = useState<'prereqs' | 'unlocks'>((params.get('mode') as 'prereqs' | 'unlocks') ?? 'unlocks')
+  const [mode, setMode] = useState<'prereqs' | 'unlocks'>((params.get('mode') as 'prereqs' | 'unlocks') ?? 'prereqs')
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set([params.get('course') ?? 'CSE12']))
   const [descExpanded, setDescExpanded] = useState(false)
-  const [bubbleVisible, setBubbleVisible] = useState(true)
+  const [bubbleVisible, setBubbleVisible] = useState(false)
   const [highlightIdx, setHighlightIdx] = useState(-1)
+  const [typing, setTyping] = useState(false)
   const skipSuggestions = useRef(false)
 
   useEffect(() => {
     const p = new URLSearchParams({ course: courseId, mode })
     window.history.replaceState(null, '', '?' + p)
     setDescExpanded(false)
-    setBubbleVisible(true)
+    setBubbleVisible(false)
   }, [courseId, mode])
   const { tree, loading: prereqLoading, error: prereqError } = useLayout(courseId)
   const { unlockData, loading: unlockLoading, error: unlockError, fetchUnlocks } = useUnlocksLayout(courseId)
@@ -123,8 +124,8 @@ export default function App() {
         <div style={{ position: 'relative' }}>
           <input
             value={draft}
-            onChange={e => setDraft(e.target.value)}
-            onBlur={() => setTimeout(() => { setSuggestions([]); setHighlightIdx(-1) }, 150)}
+            onChange={e => { setDraft(e.target.value); setTyping(true) }}
+            onBlur={() => setTimeout(() => { setSuggestions([]); setHighlightIdx(-1); setTyping(false) }, 150)}
             onKeyDown={e => {
               if (!suggestions.length) return
               if (e.key === 'ArrowDown') {
@@ -137,6 +138,7 @@ export default function App() {
                 e.preventDefault()
                 const s = suggestions[highlightIdx]
                 skipSuggestions.current = true
+                setTyping(false)
                 setDraft(s)
                 setSuggestions([])
                 setCourseId(s)
@@ -147,7 +149,7 @@ export default function App() {
             placeholder="e.g. CSE100"
             style={inputStyle}
           />
-          {suggestions.length > 0 && (
+          {typing && suggestions.length > 0 && (
             <ul style={{
               position: 'absolute',
               top: '100%',
@@ -166,6 +168,7 @@ export default function App() {
                   key={s}
                   onMouseDown={() => {
                     skipSuggestions.current = true
+                    setTyping(false)
                     setDraft(s)
                     setSuggestions([])
                     setCourseId(s)
