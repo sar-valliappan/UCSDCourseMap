@@ -60,9 +60,13 @@ export default function Graph({ tree, unlockData, mode, activeCourse, expandedNo
       proOptions={{ hideAttribution: true }}
       style={{ background: '#060d18' }}
       onNodeClick={(_, node) => {
+        if (node.type !== 'courseNode') return
+        const d = node.data as NodeData
+        if (!d.isRoot) onToggleTaken(d.label as string)
+      }}
+      onNodeDoubleClick={(_, node) => {
         if (node.type !== 'courseNode' && node.type !== 'prefixNode') return
         const d = node.data as NodeData
-        if (node.type === 'courseNode' && !d.isRoot) onToggleTaken(d.label as string)
         if (d.expandable) onNodeExpand(node.id)
         else if (d.collapsible) onNodeCollapse(node.id)
       }}
