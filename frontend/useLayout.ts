@@ -17,6 +17,14 @@ export const COURSE_IDS: string[] = courseData.courseIds as string[]
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const DESCRIPTIONS: Record<string, string> = (courseData as any).descriptions ?? {}
 
+export type NodeState = 'taken' | 'locked' | 'root'
+
+export function computeNodeState(courseId: string, taken: Set<string>, isRoot: boolean): NodeState {
+  if (isRoot) return 'root'
+  if (taken.has(courseId)) return 'taken'
+  return 'locked'
+}
+
 export interface NodeData {
   label: string
   isRoot?: boolean
@@ -24,6 +32,7 @@ export interface NodeData {
   expandable?: boolean
   collapsible?: boolean
   count?: number
+  nodeState?: NodeState
   [key: string]: unknown
 }
 
@@ -100,9 +109,11 @@ function collectLazyGraph(
   rootId: string,
   pathId: string,
   expandedNodes: Set<string>,
+  taken: Set<string>,
 ) {
   const isExpanded = expandedNodes.has(pathId)
   const hasPrereqs = tree.prereqs.length > 0 && tree.note !== 'cycle'
+  const isRoot = pathId === rootId
 
   nodes.push({
     id: pathId,
@@ -110,10 +121,11 @@ function collectLazyGraph(
     position: { x: 0, y: 0 },
     data: {
       label: tree.course_id,
-      isRoot: pathId === rootId,
+      isRoot,
       isCycle: tree.note === 'cycle',
       expandable: hasPrereqs && !isExpanded,
       collapsible: hasPrereqs && isExpanded && pathId !== rootId,
+      nodeState: computeNodeState(tree.course_id, taken, isRoot),
     },
   })
 
@@ -132,7 +144,7 @@ function collectLazyGraph(
     if (options.length === 1) {
       const childPath = `${pathId}::${options[0].course_id}`
       edges.push(makeEdge(childPath, connectTo))
-      collectLazyGraph(options[0], nodes, edges, rootId, childPath, expandedNodes)
+      collectLazyGraph(options[0], nodes, edges, rootId, childPath, expandedNodes, taken)
     } else {
       const orId = `${pathId}::or${sequence}`
       nodes.push({ id: orId, type: 'orNode', position: { x: 0, y: 0 }, data: { label: 'OR' } })
@@ -140,7 +152,7 @@ function collectLazyGraph(
       for (const option of options) {
         const childPath = `${pathId}::or${sequence}::${option.course_id}`
         edges.push(makeEdge(childPath, orId))
-        collectLazyGraph(option, nodes, edges, rootId, childPath, expandedNodes)
+        collectLazyGraph(option, nodes, edges, rootId, childPath, expandedNodes, taken)
       }
     }
   }
@@ -149,10 +161,11 @@ function collectLazyGraph(
 export function buildLazyGraph(
   tree: PrereqTreeNode,
   expandedNodes: Set<string>,
+  taken: Set<string>,
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = []
   const edges: Edge[] = []
-  collectLazyGraph(tree, nodes, edges, tree.course_id, tree.course_id, expandedNodes)
+  collectLazyGraph(tree, nodes, edges, tree.course_id, tree.course_id, expandedNodes, taken)
   return { nodes: applyDagre(nodes, edges), edges }
 }
 
@@ -165,6 +178,7 @@ function collectLazyUnlocksGraph(
   pathId: string,
   expandedNodes: Set<string>,
   visitedCourses: Set<string>,
+  taken: Set<string>,
 ) {
   const isCycle = visitedCourses.has(courseId)
   const directUnlocks = unlockData.get(courseId) ?? []
@@ -173,6 +187,7 @@ function collectLazyUnlocksGraph(
   const hasUnlocks = (UNLOCKS[courseId]?.length ?? 0) > 0
   const expandable = !isCycle && !isExpanded && hasUnlocks
   const collapsible = !isCycle && isExpanded && pathId !== rootPathId
+  const isRoot = pathId === rootPathId
 
   nodes.push({
     id: pathId,
@@ -180,10 +195,11 @@ function collectLazyUnlocksGraph(
     position: { x: 0, y: 0 },
     data: {
       label: courseId,
-      isRoot: pathId === rootPathId,
+      isRoot,
       isCycle,
       expandable,
       collapsible,
+      nodeState: computeNodeState(courseId, taken, isRoot),
     },
   })
 
@@ -211,7 +227,7 @@ function collectLazyUnlocksGraph(
     for (const childId of prefixCourses) {
       const childPath = `${prefixPathId}::${childId}`
       edges.push(makeEdge(prefixPathId, childPath))
-      collectLazyUnlocksGraph(childId, unlockData, nodes, edges, rootPathId, childPath, expandedNodes, nextVisited)
+      collectLazyUnlocksGraph(childId, unlockData, nodes, edges, rootPathId, childPath, expandedNodes, nextVisited, taken)
     }
   }
 }
@@ -220,10 +236,11 @@ export function buildLazyUnlocksGraph(
   rootId: string,
   unlockData: UnlockData,
   expandedNodes: Set<string>,
+  taken: Set<string>,
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = []
   const edges: Edge[] = []
-  collectLazyUnlocksGraph(rootId, unlockData, nodes, edges, rootId, rootId, expandedNodes, new Set())
+  collectLazyUnlocksGraph(rootId, unlockData, nodes, edges, rootId, rootId, expandedNodes, new Set(), taken)
   return { nodes: applyDagre(nodes, edges), edges }
 }
 

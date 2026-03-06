@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Graph from './Graph'
 import { useLayout, useUnlocksLayout, COURSE_IDS, DESCRIPTIONS } from './useLayout'
+import { useTaken } from './useTaken'
 
 function getCatalogUrl(courseId: string): string {
   const m = courseId.match(/^([A-Za-z]+)(\d+\w*)$/)
@@ -32,6 +33,7 @@ const buttonStyle: React.CSSProperties = {
 }
 
 export default function App() {
+  const { taken, toggle: toggleTaken, clearAll: clearTaken } = useTaken()
   const params = new URLSearchParams(window.location.search)
   const [draft, setDraft] = useState(params.get('course') ?? 'CSE12')
   const [suggestions, setSuggestions] = useState<string[]>([])
@@ -309,8 +311,10 @@ export default function App() {
         mode={mode}
         activeCourse={courseId}
         expandedNodes={expandedNodes}
+        taken={taken}
         onNodeExpand={handleNodeExpand}
         onNodeCollapse={handleNodeCollapse}
+        onToggleTaken={toggleTaken}
         onCourseSelect={id => {
           setCourseId(id)
           setDraft(id)
@@ -318,6 +322,58 @@ export default function App() {
           skipSuggestions.current = true
         }}
       />
+
+      {/* Legend + clear button */}
+      <div style={{
+        position: 'absolute',
+        bottom: 16,
+        left: 16,
+        zIndex: 10,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 6,
+        background: '#0f1923',
+        border: '1px solid #1e3a5f',
+        borderRadius: 8,
+        padding: '10px 14px',
+      }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {[
+            { color: '#22d3ee', label: 'root course' },
+            { color: '#86efac', label: 'eligible', glow: 'rgba(34,197,94,0.3)' },
+            { color: '#94a3b8', label: 'locked' },
+            { color: '#4b6a52', label: 'taken ✓' },
+          ].map(({ color, label, glow }) => (
+            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{
+                width: 10,
+                height: 10,
+                borderRadius: 2,
+                background: color,
+                boxShadow: glow ? `0 0 6px ${glow}` : 'none',
+              }} />
+              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: '#475569' }}>
+                {label}
+              </span>
+            </div>
+          ))}
+        </div>
+        {taken.size > 0 && (
+          <button
+            onClick={clearTaken}
+            style={{
+              ...buttonStyle,
+              marginTop: 2,
+              fontSize: 10,
+              padding: '4px 8px',
+              color: '#f87171',
+              borderColor: '#7f1d1d',
+            }}
+          >
+            clear all ({taken.size})
+          </button>
+        )}
+      </div>
     </div>
   )
 }

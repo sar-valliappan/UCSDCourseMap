@@ -24,17 +24,19 @@ interface Props {
   mode: 'prereqs' | 'unlocks'
   activeCourse: string
   expandedNodes: Set<string>
+  taken: Set<string>
   onNodeExpand: (nodeId: string) => void
   onNodeCollapse: (nodeId: string) => void
   onCourseSelect: (courseId: string) => void
+  onToggleTaken: (courseId: string) => void
 }
 
-export default function Graph({ tree, unlockData, mode, activeCourse, expandedNodes, onNodeExpand, onNodeCollapse, onCourseSelect }: Props) {
+export default function Graph({ tree, unlockData, mode, activeCourse, expandedNodes, taken, onNodeExpand, onNodeCollapse, onCourseSelect, onToggleTaken }: Props) {
   const { nodes, edges } = useMemo(() => {
-    if (mode === 'prereqs' && tree) return buildLazyGraph(tree, expandedNodes)
-    if (mode === 'unlocks') return buildLazyUnlocksGraph(activeCourse, unlockData, expandedNodes)
+    if (mode === 'prereqs' && tree) return buildLazyGraph(tree, expandedNodes, taken)
+    if (mode === 'unlocks') return buildLazyUnlocksGraph(activeCourse, unlockData, expandedNodes, taken)
     return { nodes: [], edges: [] }
-  }, [tree, unlockData, mode, activeCourse, expandedNodes])
+  }, [tree, unlockData, mode, activeCourse, expandedNodes, taken])
 
   const [tooltip, setTooltip] = useState<{ courseId: string; x: number; y: number } | null>(null)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -60,6 +62,7 @@ export default function Graph({ tree, unlockData, mode, activeCourse, expandedNo
       onNodeClick={(_, node) => {
         if (node.type !== 'courseNode' && node.type !== 'prefixNode') return
         const d = node.data as NodeData
+        if (node.type === 'courseNode' && !d.isRoot) onToggleTaken(d.label as string)
         if (d.expandable) onNodeExpand(node.id)
         else if (d.collapsible) onNodeCollapse(node.id)
       }}

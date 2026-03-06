@@ -5,27 +5,43 @@ import type { NodeData } from './useLayout'
 
 function CourseNode({ data }: NodeProps) {
   const d = data as NodeData
+  const ns = d.nodeState
+
+  const background =
+    ns === 'taken' ? '#1a2420' :
+    d.isRoot ? '#0f172a' :
+    d.isCycle ? '#1e1b2e' :
+    '#0f1923'
+
+  const border =
+    ns === 'taken' ? '1px solid #374437' :
+    d.isRoot ? '1.5px solid #22d3ee' :
+    d.isCycle ? '1px solid #6366f1' :
+    d.expandable ? '1px solid #334f6e' :
+    '1px solid #1e3a5f'
+
+  const boxShadow = d.isRoot ? '0 0 12px rgba(34,211,238,0.2)' : 'none'
+
+  const color =
+    ns === 'taken' ? '#4b6a52' :
+    d.isRoot ? '#22d3ee' :
+    d.isCycle ? '#818cf8' :
+    '#94a3b8'
+
+  const opacity = ns === 'locked' ? 0.6 : 1
+
   return (
     <div
       style={{
-        background: d.isRoot
-          ? '#0f172a'
-          : d.isCycle
-          ? '#1e1b2e'
-          : '#0f1923',
-        border: d.isRoot
-          ? '1.5px solid #22d3ee'
-          : d.isCycle
-          ? '1px solid #6366f1'
-          : d.expandable
-          ? '1px solid #334f6e'
-          : '1px solid #1e3a5f',
+        background,
+        border,
         borderRadius: 6,
         padding: '8px 14px',
         minWidth: 120,
         textAlign: 'center',
-        cursor: d.expandable || d.collapsible ? 'pointer' : 'default',
-        boxShadow: d.isRoot ? '0 0 12px rgba(34,211,238,0.2)' : 'none',
+        cursor: 'pointer',
+        boxShadow,
+        opacity,
       }}
     >
       <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
@@ -34,10 +50,11 @@ function CourseNode({ data }: NodeProps) {
           fontFamily: "'IBM Plex Mono', monospace",
           fontSize: 12,
           fontWeight: d.isRoot ? 500 : 400,
-          color: d.isRoot ? '#22d3ee' : d.isCycle ? '#818cf8' : '#94a3b8',
+          color,
           letterSpacing: '0.04em',
         }}
       >
+        {ns === 'taken' && <span style={{ marginRight: 4 }}>✓</span>}
         {d.label}
         {d.isCycle && <span style={{ color: '#6366f1', marginLeft: 4 }}>↺</span>}
         {d.expandable && <span style={{ color: '#38bdf8', marginLeft: 4, fontSize: 10 }}>+</span>}
