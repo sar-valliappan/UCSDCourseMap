@@ -327,7 +327,7 @@ export default function App() {
       <div style={{
         position: 'absolute',
         bottom: 16,
-        left: 16,
+        left: 56,
         zIndex: 10,
         display: 'flex',
         flexDirection: 'column',
