@@ -2,7 +2,7 @@
 
 An interactive prerequisite graph for UC San Diego courses. Search any course and explore what you need to take before it, or what it unlocks.
 
-**[Live site →](https://svalliappan.github.io/UCSDCourseMap/)**
+**[Live site →](https://sar-valliappan.github.io/UCSDCourseMap/)**
 
 ---
 
